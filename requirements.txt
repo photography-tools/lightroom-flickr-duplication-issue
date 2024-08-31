@@ -1,0 +1,2 @@
+flickrapi
+lxml==5.3.0
