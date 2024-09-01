@@ -49,7 +49,7 @@ These scripts were created in response to a mass duplicate upload event caused b
 
 14. `merge.py`: Addresses duplicate Flickr uploads by moving photos to a "To Be Deleted" set and updating the Lightroom catalog.
 
-15. `swap.py`: Swaps Flickr photo references for two photos in the Lightroom catalog, useful for correcting mismatched uploads.
+15. `swap.py`: Swaps Flickr photo references for two photos in the Lightroom catalog, useful for manually resolving duplicate uploads.
 
 16. `unfluck.py`: A script designed to revert the mass of duplicate uploads from the Lightroom Flickr plugin malfunction.
 
@@ -124,14 +124,14 @@ These scripts were used in a specific sequence to address the duplicate upload i
 
 The folder `lr-sdk-13.5` contains a copy of the source code of the official Lightroom-Flickr Plugin from Adobe, for quick reference and to help with troubleshooting.
 
-The weird Adobe license allows me to distribute a copy of the code here, but to legally use it you need to download it from the Adobe site (it's part of the SDK download).
+The weird Adobe license allows me to distribute a copy of the plugin code here, but to legally use it you need to download another copy yourself from the Adobe site (it's part of the SDK download).
 
 ## Lightroom Data Extraction
 
 The `audit.py` script requires a manual step to access the Lightroom catalog data:
 
 1. Open the `.lrcat` file with DB Browser for SQLite.
-2. Export the table `AgRemotePhoto`) as JSON.
+2. Export the table `AgRemotePhoto` as JSON.
 
 Other scripts like `lr-dump.py` can extract data directly from the catalog file.
 
