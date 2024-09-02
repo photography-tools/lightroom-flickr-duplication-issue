@@ -27,7 +27,20 @@ local LrView = import 'LrView'
 local bind = LrView.bind
 local share = LrView.share
 
-	-- Flickr plug-in
+-- 9/02/2024 added detailed logging
+
+local LrFileUtils = import 'LrFileUtils'
+
+local function log(message)
+    local logFilePath = 'lightroom-flickr-plugin.log'
+    local logFile = io.open(logFilePath, 'a')
+    if logFile then
+        logFile:write(tostring(message) .. '\n')
+        logFile:close()
+    end
+end
+
+-- Flickr plug-in
 require 'FlickrAPI'
 require 'FlickrPublishSupport'
 
@@ -253,7 +266,7 @@ exportServiceProvider.allowFileFormats = { 'JPEG' }
 	-- @class property
 
 exportServiceProvider.allowColorSpaces = { 'sRGB' }
-	
+
 --------------------------------------------------------------------------------
 --- (optional) Plug-in defined value suppresses the named color spaces from the list
  -- of available color space choices in the Export or Publish dialogs. You can use either <code>allowColorSpaces</code> or
@@ -305,7 +318,7 @@ local function updateCantExportBecause( propertyTable )
 		propertyTable.LR_cantExportBecause = LOC "$$$/Flickr/ExportDialog/NoLogin=You haven't logged in to Flickr yet."
 		return
 	end
-	
+
 	propertyTable.LR_cantExportBecause = nil
 
 end
@@ -348,23 +361,23 @@ local contentTypeToNumber = {
 local function getFlickrTitle( photo, exportSettings, pathOrMessage )
 
 	local title
-			
+
 	-- Get title according to the options in Flickr Title section.
 
 	if exportSettings.titleFirstChoice == 'filename' then
-				
+
 		title = LrPathUtils.leafName( pathOrMessage )
-				
+
 	elseif exportSettings.titleFirstChoice == 'title' then
-				
+
 		title = photo:getFormattedMetadata 'title'
-				
+
 		if ( not title or #title == 0 ) and exportSettings.titleSecondChoice == 'filename' then
 			title = LrPathUtils.leafName( pathOrMessage )
 		end
 
 	end
-				
+
 	return title
 
 end
@@ -387,7 +400,7 @@ end
 function exportServiceProvider.startDialog( propertyTable )
 
 	-- Clear login if it's a new connection.
-	
+
 	if not propertyTable.LR_editingExistingPublishConnection then
 		propertyTable.username = nil
 		propertyTable.nsid = nil
@@ -450,10 +463,10 @@ end
 function exportServiceProvider.sectionsForTopOfDialog( f, propertyTable )
 
 	return {
-	
+
 		{
 			title = LOC "$$$/Flickr/ExportDialog/Account=Flickr Account",
-			
+
 			synopsis = bind 'accountStatus',
 
 			f:row {
@@ -477,10 +490,10 @@ function exportServiceProvider.sectionsForTopOfDialog( f, propertyTable )
 
 			},
 		},
-	
+
 		{
 			title = LOC "$$$/Flickr/ExportDialog/Title=Flickr Title",
-			
+
 			synopsis = function( props )
 				if props.titleFirstChoice == 'title' then
 					return LOC( "$$$/Flickr/ExportDialog/Synopsis/TitleWithFallback=IPTC Title or ^1", displayNameForTitleChoice[ props.titleSecondChoice ] )
@@ -488,19 +501,19 @@ function exportServiceProvider.sectionsForTopOfDialog( f, propertyTable )
 					return props.titleFirstChoice and displayNameForTitleChoice[ props.titleFirstChoice ] or ''
 				end
 			end,
-			
+
 			f:column {
 				spacing = f:control_spacing(),
 
 				f:row {
 					spacing = f:label_spacing(),
-	
+
 					f:static_text {
 						title = LOC "$$$/Flickr/ExportDialog/ChooseTitleBy=Set Flickr Title Using:",
 						alignment = 'right',
 						width = share 'flickrTitleSectionLabel',
 					},
-					
+
 					f:popup_menu {
 						value = bind 'titleFirstChoice',
 						width = share 'flickrTitleLeftPopup',
@@ -512,12 +525,12 @@ function exportServiceProvider.sectionsForTopOfDialog( f, propertyTable )
 					},
 
 					f:spacer { width = 20 },
-	
+
 					f:static_text {
 						title = LOC "$$$/Flickr/ExportDialog/ChooseTitleBySecondChoice=If Empty, Use:",
 						enabled = LrBinding.keyEquals( 'titleFirstChoice', 'title', propertyTable ),
 					},
-					
+
 					f:popup_menu {
 						value = bind 'titleSecondChoice',
 						enabled = LrBinding.keyEquals( 'titleFirstChoice', 'title', propertyTable ),
@@ -527,16 +540,16 @@ function exportServiceProvider.sectionsForTopOfDialog( f, propertyTable )
 						},
 					},
 				},
-				
+
 				f:row {
 					spacing = f:label_spacing(),
-					
+
 					f:static_text {
 						title = LOC "$$$/Flickr/ExportDialog/OnUpdate=When Updating Photos:",
 						alignment = 'right',
 						width = share 'flickrTitleSectionLabel',
 					},
-					
+
 					f:popup_menu {
 						value = bind 'titleRepublishBehavior',
 						width = share 'flickrTitleLeftPopup',
@@ -574,19 +587,19 @@ end
 function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 
 	return {
-	
+
 		{
 			title = LOC "$$$/Flickr/ExportDialog/PrivacyAndSafety=Privacy and Safety",
 			synopsis = function( props )
-				
+
 				local summary = {}
-				
+
 				local function add( x )
 					if x then
 						summary[ #summary + 1 ] = x
 					end
 				end
-				
+
 				if props.privacy == 'private' then
 					add( LOC "$$$/Flickr/ExportDialog/Private=Private" )
 					if props.privacy_family then
@@ -598,16 +611,16 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 				else
 					add( LOC "$$$/Flickr/ExportDialog/Public=Public" )
 				end
-				
+
 				local safetyStr = kSafetyTitles[ props.safety ]
 				if safetyStr then
 					add( safetyStr )
 				end
-				
+
 				return table.concat( summary, " / " )
-				
+
 			end,
-			
+
 			place = 'horizontal',
 
 			f:column {
@@ -620,7 +633,7 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 						alignment = 'right',
 						width = share 'labelWidth',
 					},
-	
+
 					f:radio_button {
 						title = LOC "$$$/Flickr/ExportDialog/Private=Private",
 						checked_value = 'private',
@@ -632,18 +645,18 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 					f:spacer {
 						width = share 'labelWidth',
 					},
-	
+
 					f:column {
 						spacing = f:control_spacing() / 2,
 						margin_left = 15,
 						margin_bottom = f:control_spacing() / 2,
-		
+
 						f:checkbox {
 							title = LOC "$$$/Flickr/ExportDialog/Family=Family",
 							value = bind 'privacy_family',
 							enabled = LrBinding.keyEquals( 'privacy', 'private' ),
 						},
-		
+
 						f:checkbox {
 							title = LOC "$$$/Flickr/ExportDialog/Friends=Friends",
 							value = bind 'privacy_friends',
@@ -656,7 +669,7 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 					f:spacer {
 						width = share 'labelWidth',
 					},
-	
+
 					f:radio_button {
 						title = LOC "$$$/Flickr/ExportDialog/Public=Public",
 						checked_value = 'public',
@@ -676,7 +689,7 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 						alignment = 'right',
 						width = share 'flickr_col2_label_width',
 					},
-	
+
 					f:popup_menu {
 						value = bind 'safety',
 						width = share 'flickr_col2_popup_width',
@@ -690,11 +703,11 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 
 				f:row {
 					margin_bottom = f:control_spacing() / 2,
-					
+
 					f:spacer {
 						width = share 'flickr_col2_label_width',
 					},
-	
+
 					f:checkbox {
 						title = LOC "$$$/Flickr/ExportDialog/HideFromPublicSite=Hide from public site areas",
 						value = bind 'hideFromPublic',
@@ -707,7 +720,7 @@ function exportServiceProvider.sectionsForBottomOfDialog( f, propertyTable )
 						alignment = 'right',
 						width = share 'flickr_col2_label_width',
 					},
-	
+
 					f:popup_menu {
 						width = share 'flickr_col2_popup_width',
 						value = bind 'type',
@@ -758,19 +771,44 @@ end
 		-- Information about your export settings and the photos to be published.
 
 function exportServiceProvider.processRenderedPhotos( functionContext, exportContext )
-	
-	local exportSession = exportContext.exportSession
+
+ 	local exportSession = exportContext.exportSession
+
+    log("Export session details:")
+    log("  Export session ID: " .. tostring(exportSession.id))
+    log("  Export session name: " .. tostring(exportSession.name))
+    log("  Export session type: " .. tostring(exportSession.type))
+    log("  Export session catalog: " .. tostring(exportSession.catalog and exportSession.catalog.path))
+    log("  Export session rendition count: " .. tostring(exportSession:countRenditions()))
 
 	-- Make a local reference to the export parameters.
-	
+
 	local exportSettings = assert( exportContext.propertyTable )
-		
+
+    log("Export settings details:")
+    log("  Username: " .. tostring(exportSettings.username))
+    log("  Full name: " .. tostring(exportSettings.fullname))
+    log("  NSID: " .. tostring(exportSettings.nsid))
+    log("  Is user pro: " .. tostring(exportSettings.isUserPro))
+    log("  Auth token: " .. tostring(exportSettings.auth_token))
+    log("  Privacy: " .. tostring(exportSettings.privacy))
+    log("  Privacy family: " .. tostring(exportSettings.privacy_family))
+    log("  Privacy friends: " .. tostring(exportSettings.privacy_friends))
+    log("  Safety: " .. tostring(exportSettings.safety))
+    log("  Hide from public: " .. tostring(exportSettings.hideFromPublic))
+    log("  Content type: " .. tostring(exportSettings.type))
+    log("  Add to photoset: " .. tostring(exportSettings.addToPhotoset))
+    log("  Photoset: " .. tostring(exportSettings.photoset))
+    log("  Title first choice: " .. tostring(exportSettings.titleFirstChoice))
+    log("  Title second choice: " .. tostring(exportSettings.titleSecondChoice))
+    log("  Title republish behavior: " .. tostring(exportSettings.titleRepublishBehavior))
+
 	-- Get the # of photos.
-	
+
 	local nPhotos = exportSession:countRenditions()
-	
+
 	-- Set progress title.
-	
+
 	local progressScope = exportContext:configureProgress {
 						title = nPhotos > 1
 									and LOC( "$$$/Flickr/Publish/Progress=Publishing ^1 photos to Flickr", nPhotos )
@@ -778,10 +816,18 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 					}
 
 	-- Save off uploaded photo IDs so we can take user to those photos later.
-	
+
 	local uploadedPhotoIds = {}
-	
+
 	local publishedCollectionInfo = exportContext.publishedCollectionInfo
+
+    log("Published collection info details:")
+    log("  Name: " .. tostring(publishedCollectionInfo.name))
+    log("  Remote ID: " .. tostring(publishedCollectionInfo.remoteId))
+    log("  Is default collection: " .. tostring(publishedCollectionInfo.isDefaultCollection))
+    log("  Parent name: " .. tostring(publishedCollectionInfo.parentName))
+    log("  Parent remote ID: " .. tostring(publishedCollectionInfo.parentRemoteId))
+    log("  Path: " .. tostring(publishedCollectionInfo.path))
 
 	local isDefaultCollection = publishedCollectionInfo.isDefaultCollection
 
@@ -793,9 +839,9 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 	-- to be re-uploaded entirely.
 
 	local photosetPhotoIds = photosetId and FlickrAPI.listPhotosFromPhotoset( exportSettings, { photosetId = photosetId } )
-	
+
 	local photosetPhotosSet = {}
-	
+
 	-- Turn it into a set for quicker access later.
 
 	if photosetPhotoIds then
@@ -803,40 +849,102 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 			photosetPhotosSet[ id ] = true
 		end
 	end
-	
+
+    local photosetPhotoIds = photosetId and FlickrAPI.listPhotosFromPhotoset( exportSettings, { photosetId = photosetId } )
+    log("Photoset photo IDs details:")
+    if photosetPhotoIds then
+        log("  Number of photos in photoset: " .. tostring(#photosetPhotoIds))
+        log("  Photo IDs in photoset (up to 10,000):")
+        for i = 1, math.min(10000, #photosetPhotoIds) do
+            log("    " .. tostring(i) .. ": " .. tostring(photosetPhotoIds[i]))
+        end
+        if #photosetPhotoIds > 10000 then
+            log("    ... (and " .. tostring(#photosetPhotoIds - 10000) .. " more)")
+        end
+    else
+        log("  No photos in photoset or photoset not found")
+    end
+
+    -- Log the photosetPhotosSet
+    log("Photoset photos set details:")
+    local count = 0
+    for id in pairs(photosetPhotosSet) do
+        count = count + 1
+        if count <= 10000 then
+            log("  Photo ID in set: " .. tostring(id))
+        elseif count == 10001 then
+            log("  ... (and more)")
+        end
+    end
+    log("  Total number of unique photo IDs in set: " .. tostring(count))
+
 	local couldNotPublishBecauseFreeAccount = {}
 	local flickrPhotoIdsForRenditions = {}
-	
+
 	local cannotRepublishCount = 0
-	
+
 	-- Gather flickr photo IDs, and if we're on a free account, remember the renditions that
 	-- had been previously published.
 
 	for i, rendition in exportContext.exportSession:renditions() do
-	
+
 		local flickrPhotoId = rendition.publishedPhotoId
-			
+
 		if flickrPhotoId then
-		
+
 			-- Check to see if the photo is still on Flickr.
 
 			if not photosetPhotosSet[ flickrPhotoId ] and not isDefaultCollection then
 				flickrPhotoId = nil
 			end
-			
+
 		end
-		
+
 		if flickrPhotoId and not exportSettings.isUserPro then
 			couldNotPublishBecauseFreeAccount[ rendition ] = true
 			cannotRepublishCount = cannotRepublishCount + 1
 		end
-			
+
 		flickrPhotoIdsForRenditions[ rendition ] = flickrPhotoId
-	
+
 	end
-	
+
+    -- Logging section starts here
+    log("Finished gathering Flickr photo IDs")
+    log("Total number of renditions: " .. tostring(exportContext.exportSession:countRenditions()))
+    log("Total renditions that cannot be republished due to free account: " .. cannotRepublishCount)
+
+    log("Details of all renditions:")
+    for i, rendition in exportContext.exportSession:renditions() do
+        local flickrPhotoId = flickrPhotoIdsForRenditions[rendition]
+        log("Rendition " .. i .. ":")
+        log("  Photo name: " .. tostring(rendition.photo:getFormattedMetadata("fileName")))
+        log("  Photo ID: " .. tostring(rendition.photo.localIdentifier))
+        log("  Published photo ID: " .. tostring(rendition.publishedPhotoId))
+        log("  Current Flickr photo ID: " .. tostring(flickrPhotoId))
+        log("  Is edited: " .. tostring(rendition.photo:getRawMetadata("hasDevelopAdjustments")))
+        log("  Capture time: " .. tostring(rendition.photo:getFormattedMetadata("dateTimeOriginal")))
+        log("  Can republish: " .. tostring(not couldNotPublishBecauseFreeAccount[rendition]))
+        log("  Still on Flickr: " .. tostring(photosetPhotosSet[flickrPhotoId] or isDefaultCollection))
+    end
+
+    log("Details of photos that cannot be republished due to free account:")
+    for rendition, _ in pairs(couldNotPublishBecauseFreeAccount) do
+        log("  Photo name: " .. tostring(rendition.photo:getFormattedMetadata("fileName")))
+        log("  Photo ID: " .. tostring(rendition.photo.localIdentifier))
+        log("  Published photo ID: " .. tostring(rendition.publishedPhotoId))
+    end
+
+    log("Summary of Flickr photo IDs for renditions:")
+    for rendition, flickrPhotoId in pairs(flickrPhotoIdsForRenditions) do
+        log("  Photo name: " .. tostring(rendition.photo:getFormattedMetadata("fileName")))
+        log("  Photo ID: " .. tostring(rendition.photo.localIdentifier))
+        log("  Flickr photo ID: " .. tostring(flickrPhotoId))
+    end
+    -- Logging section ends here
+
 	-- If we're on a free account, see which photos are being republished and give a warning.
-	
+
 	if cannotRepublishCount	> 0 then
 
 		local message = ( cannotRepublishCount == 1 ) and
@@ -844,7 +952,7 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 							or LOC( "$$$/Flickr/FreeAccountErr/Plural/ThereIsAPhotoToUpdateOnFlickr=There are ^1 photos to update on Flickr", cannotRepublishCount )
 
 		local messageInfo = LOC( "$$$/Flickr/FreeAccountErr/Singular/CommentsAndRatingsWillBeLostWarning=With a free (non-Pro) Flickr account, all comments and ratings will be lost on updated photos. Are you sure you want to do this?" )
-		
+
 		local action = LrDialogs.promptForActionWithDoNotShow {
 									message = message,
 									info = messageInfo,
@@ -856,14 +964,14 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
                                 }
 
 		if action == "skip" then
-			
+
 			local skipRendition = next( couldNotPublishBecauseFreeAccount )
-			
+
 			while skipRendition ~= nil do
 				skipRendition:skipRender()
 				skipRendition = next( couldNotPublishBecauseFreeAccount, skipRendition )
 			end
-			
+
 		elseif action == "replace" then
 
 			-- We will publish as usual, replacing these photos.
@@ -880,17 +988,17 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 		end
 
 	end
-	
+
 	-- Iterate through photo renditions.
-	
+
 	local photosetUrl
 
 	for i, rendition in exportContext:renditions { stopIfCanceled = true } do
-	
+
 		-- Update progress scope.
-		
+
 		progressScope:setPortionComplete( ( i - 1 ) / nPhotos )
-		
+
 		-- Get next photo.
 
 		local photo = rendition.photo
@@ -898,30 +1006,30 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 		-- See if we previously uploaded this photo.
 
 		local flickrPhotoId = flickrPhotoIdsForRenditions[ rendition ]
-		
+
 		if not rendition.wasSkipped then
 
 			local success, pathOrMessage = rendition:waitForRender()
-			
+
 			-- Update progress scope again once we've got rendered photo.
-			
+
 			progressScope:setPortionComplete( ( i - 0.5 ) / nPhotos )
-			
+
 			-- Check for cancellation again after photo has been rendered.
-			
+
 			if progressScope:isCanceled() then break end
-			
+
 			if success then
-	
+
 				-- Build up common metadata for this photo.
-				
+
 				local title = getFlickrTitle( photo, exportSettings, pathOrMessage )
-		
+
 				local description = photo:getFormattedMetadata( 'caption' )
 				local keywordTags = photo:getFormattedMetadata( 'keywordTagsForExport' )
-				
+
 				local tags
-				
+
 				if keywordTags then
 
 					tags = {}
@@ -929,30 +1037,30 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 					local keywordIter = string.gfind( keywordTags, "[^,]+" )
 
 					for keyword in keywordIter do
-					
+
 						if string.sub( keyword, 1, 1 ) == ' ' then
 							keyword = string.sub( keyword, 2, -1 )
 						end
-						
+
 						if string.find( keyword, ' ' ) ~= nil then
 							keyword = '"' .. keyword .. '"'
 						end
-						
+
 						tags[ #tags + 1 ] = keyword
 
 					end
 
 				end
-				
+
 				-- Flickr will pick up LR keywords from XMP, so we don't need to merge them here.
-				
+
 				local is_public = privacyToNumber[ exportSettings.privacy ]
 				local is_friend = booleanToNumber( exportSettings.privacy_friends )
 				local is_family = booleanToNumber( exportSettings.privacy_family )
 				local safety_level = safetyToNumber[ exportSettings.safety ]
 				local content_type = contentTypeToNumber[ exportSettings.type ]
 				local hidden = exportSettings.hideFromPublic and 2 or 1
-				
+
 				-- Because it is common for Flickr users (even viewers) to add additional tags via
 				-- the Flickr web site, so we should not remove extra keywords that do not correspond
 				-- to keywords in Lightroom. In order to do so, we record the tags that we uploaded
@@ -960,22 +1068,44 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 				-- We use the difference between tag sets to determine if we should remove a tag (i.e.
 				-- it was one we uploaded and is no longer present in Lightroom) or not (i.e. it was
 				-- added by user on Flickr and never was present in Lightroom).
-				
+
 				local previous_tags = photo:getPropertyForPlugin( _PLUGIN, 'previous_tags' )
-	
+
 				-- If on a free account and this photo already exists, delete it from Flickr.
 
 				if flickrPhotoId and not exportSettings.isUserPro then
+                    log("Beginning photo delete process")
+                    log("Current photo details:")
+                    log("  Photo name: " .. tostring(photo:getFormattedMetadata("fileName")))
+                    log("  Photo ID: " .. tostring(photo.localIdentifier))
+                    log("  Existing Flickr photo ID: " .. tostring(flickrPhotoId))
 
 					FlickrAPI.deletePhoto( exportSettings, { photoId = flickrPhotoId, suppressError = true } )
 					flickrPhotoId = nil
 
 				end
-				
+
 				-- Upload or replace the photo.
-				
+
 				local didReplace = not not flickrPhotoId
-				
+
+                log("Beginning photo upload/replace process")
+                log("Current photo details:")
+                log("  Photo name: " .. tostring(photo:getFormattedMetadata("fileName")))
+                log("  Photo ID: " .. tostring(photo.localIdentifier))
+                log("  Existing Flickr photo ID: " .. tostring(flickrPhotoId))
+                log("  Is replacement: " .. tostring(not not flickrPhotoId))
+                log("Upload parameters:")
+                log("  Title: " .. tostring(title))
+                log("  Description length: " .. tostring(description and string.len(description) or 0))
+                log("  Number of tags: " .. tostring(tags and #tags or 0))
+                log("  Is public: " .. tostring(is_public))
+                log("  Is friend: " .. tostring(is_friend))
+                log("  Is family: " .. tostring(is_family))
+                log("  Safety level: " .. tostring(safety_level))
+                log("  Content type: " .. tostring(content_type))
+                log("  Hidden: " .. tostring(hidden))
+
 				flickrPhotoId = FlickrAPI.uploadPhoto( exportSettings, {
 										photo_id = flickrPhotoId,
 										filePath = pathOrMessage,
@@ -989,23 +1119,23 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 										content_type = content_type,
 										hidden = hidden,
 									} )
-				
+
 				if didReplace then
-				
+
 					-- The replace call used by FlickrAPI.uploadPhoto ignores all of the metadata that is passed
 					-- in above. We have to manually upload that info after the fact in this case.
-					
+
 					if exportSettings.titleRepublishBehavior == 'replace' then
-						
+
 						FlickrAPI.callRestMethod( exportSettings, {
 												method = 'flickr.photos.setMeta',
 												photo_id = flickrPhotoId,
 												title = title or '',
 												description = description or '',
 											} )
-											
+
 					end
-	
+
 					FlickrAPI.callRestMethod( exportSettings, {
 											method = 'flickr.photos.setPerms',
 											photo_id = flickrPhotoId,
@@ -1015,130 +1145,155 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 											perm_comment = 3, -- everybody
 											perm_addmeta = 3, -- everybody
 										} )
-	
+
 					FlickrAPI.callRestMethod( exportSettings, {
 											method = 'flickr.photos.setSafetyLevel',
 											photo_id = flickrPhotoId,
 											safety_level = safety_level,
 											hidden = (hidden == 2) and 1 or 0,
 										} )
-	
+
 					FlickrAPI.callRestMethod( exportSettings, {
 											method = 'flickr.photos.setContentType',
 											photo_id = flickrPhotoId,
 											content_type = content_type,
 										} )
-		
+
 				end
-	
+
 				FlickrAPI.setImageTags( exportSettings, {
 											photo_id = flickrPhotoId,
 											tags = table.concat( tags, ',' ),
 											previous_tags = previous_tags,
 											is_public = is_public,
 										} )
-				
+
 				-- When done with photo, delete temp file. There is a cleanup step that happens later,
 				-- but this will help manage space in the event of a large upload.
-					
+
+                log("Deleting temporary file: " .. tostring(pathOrMessage))
+
 				LrFileUtils.delete( pathOrMessage )
-	
+
 				-- Remember this in the list of photos we uploaded.
-	
+
 				uploadedPhotoIds[ #uploadedPhotoIds + 1 ] = flickrPhotoId
-				
+
 				-- If this isn't the Photostream, set up the photoset.
-				
+
 				if not photosetUrl then
-	
+                    log("Setting up photoset")
+
 					if not isDefaultCollection then
-	
+                        log("Not a default collection")
+
 						-- Create or update this photoset.
-	
+
 						photosetId, photosetUrl = FlickrAPI.createOrUpdatePhotoset( exportSettings, {
 													photosetId = photosetId,
 													title = publishedCollectionInfo.name,
 													--		description = ??,
 													primary_photo_id = uploadedPhotoIds[ 1 ],
 												} )
-				
+
 					else
-	
+                        log("Default collection")
+
 						-- Photostream: find the URL.
-	
+
 						photosetUrl = FlickrAPI.constructPhotostreamURL( exportSettings )
-	
+                        log("Photostream URL: " .. tostring(photosetUrl))
+
 					end
-					
+
 				end
-				
+
 				-- Record this Flickr ID with the photo so we know to replace instead of upload.
-					
+
+                log("Recording published photo ID: " .. tostring(flickrPhotoId))
 				rendition:recordPublishedPhotoId( flickrPhotoId )
-				
+
 				local photoUrl
-							
+
 				if ( not isDefaultCollection ) then
-					
+
 					photoUrl = FlickrAPI.constructPhotoURL( exportSettings, {
 											photo_id = flickrPhotoId,
 											photosetId = photosetId,
 											is_public = is_public,
 										} )
-										
+
+                    log("Photo URL: " .. tostring(photoUrl))
+
 					-- Add the uploaded photos to the correct photoset.
 
-					FlickrAPI.addPhotosToSet( exportSettings, {
+					local addPhotosToSetResult = FlickrAPI.addPhotosToSet( exportSettings, {
 									photoId = flickrPhotoId,
 									photosetId = photosetId,
 								} )
-					
+
+                    log("Added photo to photoset: " .. tostring(addPhotosToSetResult))
+
 				else
-					
+
 					photoUrl = FlickrAPI.constructPhotoURL( exportSettings, {
 											photo_id = flickrPhotoId,
 											is_public = is_public,
 										} )
-										
+
+                    log("Photo URL: " .. tostring(photoUrl))
 				end
-					
+
+                log("Recording published photo URL: " .. tostring(photoUrl))
 				rendition:recordPublishedPhotoUrl( photoUrl )
-						
+
 				-- Because it is common for Flickr users (even viewers) to add additional tags
 				-- via the Flickr web site, so we can avoid removing those user-added tags that
 				-- were never in Lightroom to begin with. See earlier comment.
-				
+
+                log("Recording previous tags: " .. tostring(table.concat(tags, ',')))
 				photo.catalog:withPrivateWriteAccessDo( function()
 										photo:setPropertyForPlugin( _PLUGIN, 'previous_tags', table.concat( tags, ',' ) )
 									end )
-			
+
 			end
-		
+
 		else
-		
+
 			-- To get the skipped photo out of the to-republish bin.
+            log("Skipping rendition: " .. tostring(rendition.photo:getFormattedMetadata("fileName")))
 			rendition:recordPublishedPhotoId(rendition.publishedPhotoId)
-			
+
 		end
 
 	end
-	
+
 	if #uploadedPhotoIds > 0 then
-	
+
 		if ( not isDefaultCollection ) then
-			
+
+            log("Recording remote collection ID: " .. tostring(photosetId))
 			exportSession:recordRemoteCollectionId( photosetId )
-					
+
 		end
-	
+
 		-- Set up some additional metadata for this collection.
 
+        log("Recording remote collection URL: " .. tostring(photosetUrl))
 		exportSession:recordRemoteCollectionUrl( photosetUrl )
-		
+
 	end
 
+    log("almost done")
 	progressScope:done()
-	
+    log("done")
+
+    -- Attempt to open the log file
+    local LrShell = import 'LrShell'
+    local logPath = LrLogger.logFilePath()
+    if LrShell then
+        LrShell.openFilesFromComputer({logPath})
+    end
 end
 
 --------------------------------------------------------------------------------

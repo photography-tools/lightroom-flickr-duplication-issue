@@ -82,7 +82,7 @@ local publishServiceProvider = {}
 	-- @name publishServiceProvider.small_icon
 	-- @class property
 
-publishServiceProvider.small_icon = 'small_flickr.png'
+publishServiceProvider.small_icon = 'resources/small_flickr.png'
 
 --------------------------------------------------------------------------------
 --- (optional, string) Plug-in defined value customizes the behavior of the
@@ -92,7 +92,7 @@ publishServiceProvider.small_icon = 'small_flickr.png'
  -- property that should be used in this case.
 	-- @name publishServiceProvider.publish_fallbackNameBinding
 	-- @class property
-	
+
 publishServiceProvider.publish_fallbackNameBinding = 'fullname'
 
 --------------------------------------------------------------------------------
@@ -104,7 +104,7 @@ publishServiceProvider.publish_fallbackNameBinding = 'fullname'
  -- <p>First supported in version 3.0 of the Lightroom SDK.</p>
 	-- @name publishServiceProvider.titleForPublishedCollection
 	-- @class property
-	
+
 publishServiceProvider.titleForPublishedCollection = LOC "$$$/Flickr/TitleForPublishedCollection=Photoset"
 
 --------------------------------------------------------------------------------
@@ -132,7 +132,7 @@ publishServiceProvider.titleForPublishedCollection_standalone = LOC "$$$/Flickr/
  -- <p>First supported in version 3.0 of the Lightroom SDK.</p>
 	-- @name publishServiceProvider.titleForPublishedCollectionSet
 	-- @class property
-	
+
 -- publishServiceProvider.titleForPublishedCollectionSet = "(something)" -- not used for Flickr plug-in
 
 --------------------------------------------------------------------------------
@@ -215,7 +215,7 @@ function publishServiceProvider.getCollectionBehaviorInfo( publishSettings )
 		maxCollectionSetDepth = 0,
 			-- Collection sets are not supported through the Flickr sample plug-in.
 	}
-	
+
 end
 
 --------------------------------------------------------------------------------
@@ -546,7 +546,7 @@ function publishServiceProvider.deletePhotosFromPublishedCollection( publishSett
 		deletedCallback( photoId )
 
 	end
-	
+
 end
 
 --------------------------------------------------------------------------------
@@ -696,13 +696,13 @@ end
 	-- </ul>
 	-- @return (table) A single view description created from one of the methods in
 		-- the view factory. (We recommend that <code>f:groupBox</code> be the outermost view.)
- 
+
 --[[ Not used for Flickr plug-in. This is an example of how this function might work.
 
 function publishServiceProvider.viewForCollectionSettings( f, publishSettings, info )
 
 	local collectionSettings = assert( info.collectionSettings )
-	
+
 	-- Fill in default parameters. This code sample targets a hypothetical service
 	-- that allows users to enable or disable ratings and comments on a per-collection
 	-- basis.
@@ -714,7 +714,7 @@ function publishServiceProvider.viewForCollectionSettings( f, publishSettings, i
 	if collectionSettings.enableComments == nil then
 		collectionSettings.enableComments = false
 	end
-	
+
 	local bind = import 'LrView'.bind
 
 	return f:group_box {
@@ -722,7 +722,7 @@ function publishServiceProvider.viewForCollectionSettings( f, publishSettings, i
 		size = 'small',
 		fill_horizontal = 1,
 		bind_to_object = assert( collectionSettings ),
-		
+
 		f:column {
 			fill_horizontal = 1,
 			spacing = f:label_spacing(),
@@ -737,7 +737,7 @@ function publishServiceProvider.viewForCollectionSettings( f, publishSettings, i
 				value = bind 'enableComments',
 			},
 		},
-		
+
 	}
 
 end
@@ -968,7 +968,7 @@ end
 		-- <li><b>publishService</b>: (<a href="LrPublishService.html"><code>LrPublishService</code></a>)
 		-- 	The publish service object to which this collection belongs.</li>
 	-- </ul>
- 
+
 --[[ Not used for Flickr plug-in.
 
 function publishServiceProvider.updateCollectionSettings( publishSettings, info )
@@ -1057,7 +1057,7 @@ end
 	-- @class property
 
 publishServiceProvider.supportsCustomSortOrder = true
-	
+
 --------------------------------------------------------------------------------
 --- (optional) This plug-in defined callback function is called after each time
  -- that photos are published via this service assuming the published collection
@@ -1111,21 +1111,21 @@ function publishServiceProvider.imposeSortOrderOnPublishedCollection( publishSet
 		local existingPhotoSequence = FlickrAPI.listPhotosFromPhotoset( publishSettings, { photosetId = photosetId } )
 
 		-- Make a copy of the remote sequence from LR and then tack on any photos we didn't see earlier.
-		
+
 		local combinedRemoteSequence = {}
 		local remoteIdsInSequence = {}
-		
+
 		for i, id in ipairs( remoteIdSequence ) do
 			combinedRemoteSequence[ i ] = id
 			remoteIdsInSequence[ id ] = true
 		end
-		
+
 		for _, id in ipairs( existingPhotoSequence ) do
 			if not remoteIdsInSequence[ id ] then
 				combinedRemoteSequence[ #combinedRemoteSequence + 1 ] = id
 			end
 		end
-		
+
 		-- There may be no photos left in the set, so check for that before trying
 		-- to set the sequence.
 		if existingPhotoSequence and existingPhotoSequence.primary then
@@ -1134,7 +1134,7 @@ function publishServiceProvider.imposeSortOrderOnPublishedCollection( publishSet
 									primary = existingPhotoSequence.primary,
 									photoIds = combinedRemoteSequence } )
 		end
-								
+
 	end
 
 end
@@ -1228,7 +1228,7 @@ function publishServiceProvider.renamePublishedCollection( publishSettings, info
 						} )
 
 	end
-		
+
 end
 
 -------------------------------------------------------------------------------
@@ -1313,35 +1313,35 @@ end
 function publishServiceProvider.deletePublishedCollection( publishSettings, info )
 
 	import 'LrFunctionContext'.callWithContext( 'publishServiceProvider.deletePublishedCollection', function( context )
-	
+
 		local progressScope = LrDialogs.showModalProgressDialog {
 							title = LOC( "$$$/Flickr/DeletingCollectionAndContents=Deleting photoset ^[^1^]", info.name ),
 							functionContext = context }
-	
+
 		if info and info.photoIds then
-		
+
 			for i, photoId in ipairs( info.photoIds ) do
-			
+
 				if progressScope:isCanceled() then break end
-			
+
 				progressScope:setPortionComplete( i - 1, #info.photoIds )
 				FlickrAPI.deletePhoto( publishSettings, { photoId = photoId } )
-			
+
 			end
-		
+
 		end
-	
+
 		if info and info.remoteId then
-	
+
 			FlickrAPI.deletePhotoset( publishSettings, {
 								photosetId = info.remoteId,
 								suppressError = true,
 									-- Flickr has probably already deleted the photoset
 									-- when the last photo was deleted.
 							} )
-	
+
 		end
-			
+
 	end )
 
 end
@@ -1419,9 +1419,9 @@ function publishServiceProvider.getCommentsFromPublishedCollection( publishSetti
 		local comments = FlickrAPI.getComments( publishSettings, {
 								photoId = photoInfo.remoteId,
 							} )
-		
+
 		local commentList = {}
-		
+
 		if comments and #comments > 0 then
 
 			for _, comment in ipairs( comments ) do
@@ -1517,7 +1517,7 @@ function publishServiceProvider.getRatingsFromPublishedCollection( publishSettin
 		ratingCallback{ publishedPhoto = photoInfo, rating = rating or 0 }
 
 	end
-	
+
 end
 
 --------------------------------------------------------------------------------
@@ -1566,7 +1566,7 @@ function publishServiceProvider.addCommentToPublishedPhoto( publishSettings, rem
 							photoId = remotePhotoId,
 							commentText = commentText,
 						} )
-	
+
 	return success
 
 end

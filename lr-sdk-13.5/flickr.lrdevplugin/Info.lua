@@ -18,17 +18,17 @@ of it requires the prior written permission of Adobe.
 
 return {
 
-	LrSdkVersion = 3.0,
-	LrSdkMinimumVersion = 3.0, -- minimum SDK version required by this plug-in
+	LrSdkVersion = 5.0,
+	LrSdkMinimumVersion = 5.0, -- minimum SDK version required by this plug-in
 
 	LrToolkitIdentifier = 'com.adobe.lightroom.export.flickr',
 	LrPluginName = LOC "$$$/Flickr/PluginName=Flickr",
-	
+
 	LrExportServiceProvider = {
 		title = LOC "$$$/Flickr/Flickr-title=Flickr",
 		file = 'FlickrExportServiceProvider.lua',
 	},
-	
+
 	LrMetadataProvider = 'FlickrMetadataDefinition.lua',
 
 	VERSION = { major=13, minor=5, revision=0, build="202408062022-6258095b", },
