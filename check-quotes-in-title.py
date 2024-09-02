@@ -3,6 +3,7 @@ check-quotes-in-title.py: Script to find titles with double quotes in Lightroom 
 
 This script connects to a Lightroom catalog and Flickr, retrieves photos from the
 publish collection, and identifies titles containing double quotes in both systems.
+It checks XMP, EXIF, and IPTC metadata in Lightroom for a comprehensive title check.
 
 Usage:
     python check-quotes-in-title.py <path_to_lightroom_catalog>
@@ -20,6 +21,7 @@ import json
 from datetime import datetime
 import flickrapi
 import re
+from lxml import etree
 from lightroom_operations import connect_to_lightroom_db, decompress_xmp, parse_xmp
 from flickr_operations import authenticate_flickr, get_flickr_photos
 
@@ -41,6 +43,42 @@ def get_flickr_set_id(conn):
         if match:
             return match.group(1)
     return None
+
+def parse_metadata(xmp_data):
+    if not xmp_data:
+        return {}
+    
+    try:
+        root = etree.fromstring(xmp_data)
+        namespaces = {
+            'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+            'dc': 'http://purl.org/dc/elements/1.1/',
+            'xmp': 'http://ns.adobe.com/xap/1.0/',
+            'exif': 'http://ns.adobe.com/exif/1.0/',
+            'iptc': 'http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/'
+        }
+        
+        metadata = {}
+        
+        # Check XMP title
+        xmp_title = root.find('.//dc:title/rdf:Alt/rdf:li', namespaces)
+        if xmp_title is not None:
+            metadata['xmp_title'] = xmp_title.text
+
+        # Check EXIF title
+        exif_title = root.find('.//exif:UserComment', namespaces)
+        if exif_title is not None:
+            metadata['exif_title'] = exif_title.text
+
+        # Check IPTC title
+        iptc_title = root.find('.//dc:title', namespaces)
+        if iptc_title is not None:
+            metadata['iptc_title'] = iptc_title.text
+
+        return metadata
+    except Exception as e:
+        print(f"Error parsing metadata: {e}")
+        return {}
 
 def get_lr_photos_with_quotes(conn):
     cursor = conn.cursor()
@@ -66,17 +104,18 @@ def get_lr_photos_with_quotes(conn):
         if xmp:
             decompressed_xmp = decompress_xmp(xmp)
             if decompressed_xmp:
-                parsed_xmp = parse_xmp(decompressed_xmp)
-                if parsed_xmp:
-                    title = parsed_xmp.get('http://www.w3.org/1999/02/22-rdf-syntax-ns#RDF', {}).get('http://www.w3.org/1999/02/22-rdf-syntax-ns#Description', {}).get('http://purl.org/dc/elements/1.1/title', {}).get('http://www.w3.org/1999/02/22-rdf-syntax-ns#Alt', {}).get('http://www.w3.org/1999/02/22-rdf-syntax-ns#li')
-                    if title and '"' in title:
-                        photos_with_quotes.append({
-                            'lr_id': lr_id,
-                            'flickr_id': flickr_id,
-                            'file_name': f"{base_name}.{extension}",
-                            'file_path': path_from_root,
-                            'title': title
-                        })
+                metadata = parse_metadata(decompressed_xmp)
+                
+                titles_with_quotes = {k: v for k, v in metadata.items() if v and '"' in v}
+                
+                if titles_with_quotes:
+                    photos_with_quotes.append({
+                        'lr_id': lr_id,
+                        'flickr_id': flickr_id,
+                        'file_name': f"{base_name}.{extension}",
+                        'file_path': path_from_root,
+                        'titles_with_quotes': titles_with_quotes
+                    })
 
     return photos_with_quotes
 
