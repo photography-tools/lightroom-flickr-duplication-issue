@@ -11,6 +11,23 @@ import flickrapi
 import argparse
 from datetime import datetime
 
+def get_all_photos_in_set(flickr, set_id):
+    """Fetch all photos in a Flickr set, handling pagination."""
+    photos = []
+    page = 1
+    per_page = 500  # Maximum allowed by Flickr API
+
+    while True:
+        response = flickr.photosets.getPhotos(photoset_id=set_id, page=page, per_page=per_page)
+        photos.extend(response['photoset']['photo'])
+
+        if page >= response['photoset']['pages']:
+            break
+
+        page += 1
+
+    return photos
+
 def authenticate_flickr(api_key, api_secret):
     flickr = flickrapi.FlickrAPI(api_key, api_secret, format='parsed-json')
     if not flickr.token_valid(perms='read'):

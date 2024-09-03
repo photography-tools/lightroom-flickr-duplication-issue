@@ -5,10 +5,11 @@ This script integrates the flickr_operations and lightroom_operations modules
 to perform a comprehensive audit between Lightroom catalogs and Flickr sets.
 
 Usage:
-    python lightroom_flickr_audit_main.py [--fix-singles] [--prune] [--brief] [--no-deep] [--debug]
+    python lightroom_flickr_audit_main.py [--fix-singles] [--fix-sets] [--prune] [--brief] [--no-deep] [--debug]
 
 Options:
     --fix-singles Repoint Lightroom to single Flickr match for single matches only
+    --fix-sets    Add photos to their expected Flickr sets
     --prune       Identify and optionally delete low-engagement Flickr matches (views < 100, comments == 0, favorites == 0)
     --brief       Output concise results focusing on key identification fields
     --no-deep     Disable deep scan (XMP metadata analysis)
@@ -19,13 +20,12 @@ import argparse
 import json
 import os
 import sys
-import time
 from collections import defaultdict
 from datetime import datetime
 
 # Import functions from our modules
 from audit_utils import load_secrets, perform_audit, print_audit_results
-from flickr_ops import add_to_managed_set, authenticate_flickr, get_flickr_photos, delete_flickr_photo
+from flickr_ops import add_to_managed_set, authenticate_flickr, get_all_photos_in_set, get_flickr_photos, delete_flickr_photo
 from lightroom_ops import connect_to_lightroom_db, extract_xmp_document_id, get_flickr_sets, get_lr_photos, update_lr_remote_id
 
 def print_flush(message):
@@ -49,8 +49,6 @@ def identify_low_engagement_matches(flickr, audit_results, verbose=False):
                 highest_views_id = None
                 for match in photo["flickr_matches"]:
                     try:
-                        # Get additional info from Flickr API
-                        #photo_info = flickr.photos.getInfo(photo_id=match["id"])
                         views = int(match['views'])
                         if views < 100:
                             comments = int(match['count_comments'])
@@ -61,7 +59,6 @@ def identify_low_engagement_matches(flickr, audit_results, verbose=False):
                             if comments == 0 and favorites == 0:
                                 low_engagement_matches.append(match["id"])
 
-                        # Keep track of the photo with the most views
                         if views > highest_views:
                             highest_views = views
                             highest_views_id = match["id"]
@@ -70,11 +67,9 @@ def identify_low_engagement_matches(flickr, audit_results, verbose=False):
                         if verbose:
                             print_flush(f"Error getting info for photo {match['id']}: {str(e)}")
 
-                # Ensure we're not flagging all matches for deletion
                 if len(low_engagement_matches) < len(photo["flickr_matches"]):
                     to_be_pruned[photo["lr_photo"]["lr_remote_id"]] = low_engagement_matches
                 else:
-                    # If all matches are low engagement, keep the one with the most views
                     to_be_pruned[photo["lr_photo"]["lr_remote_id"]] = [id for id in low_engagement_matches if id != highest_views_id]
                     print_flush(f"All matches for photo {photo['lr_photo']['lr_remote_id']} are low engagement. Keeping photo {highest_views_id} with {highest_views} views.")
 
@@ -89,15 +84,26 @@ def prune_low_engagement_matches(flickr, to_be_pruned, debug=False):
             try:
                 delete_flickr_photo(flickr, flickr_id)
                 pruned_photos[lr_remote_id].append(flickr_id)
-                # Add a small delay to avoid rate limiting
-                time.sleep(0.1)
             except Exception as e:
                 print_flush(f"Failed to delete Flickr photo {flickr_id}: {str(e)}")
     return pruned_photos
 
+def add_photos_to_set(flickr, photos_to_add, set_id, debug=False):
+    added_photos = []
+    for photo_id in photos_to_add:
+        if debug:
+            print_flush(f"Attempting to add photo {photo_id} to set {set_id}")
+        try:
+            add_to_managed_set(flickr, photo_id, set_id)
+            added_photos.append(photo_id)
+        except Exception as e:
+            print_flush(f"Failed to add photo {photo_id} to set {set_id}: {str(e)}")
+    return added_photos
+
 def main():
     parser = argparse.ArgumentParser(description='Lightroom-Flickr Audit and Synchronization Utility')
     parser.add_argument('--fix-singles', action='store_true', help='Repoint Lightroom to single Flickr match for single matches only')
+    parser.add_argument('--fix-sets', action='store_true', help='Add photos to their expected Flickr sets')
     parser.add_argument('--prune', action='store_true', help='Identify and optionally delete low-engagement Flickr matches')
     parser.add_argument('--brief', action='store_true', help='Output concise results focusing on key identification fields')
     parser.add_argument('--no-deep', action='store_true', help='Disable deep scan (XMP metadata analysis)')
@@ -112,12 +118,16 @@ def main():
 
     conn = connect_to_lightroom_db(secrets['lrcat_file_path'])
 
-    flickr_sets = get_flickr_sets(conn)
-    print_flush(f"Detected {len(flickr_sets)} Flickr sets in Lightroom catalog")
+    lightroom_flickr_sets = get_flickr_sets(conn)
+    print_flush(f"Detected {len(lightroom_flickr_sets)} Flickr sets in Lightroom catalog")
+
+    all_flickr_photos = get_flickr_photos(flickr)
+    print_flush(f"Retrieved {len(all_flickr_photos)} photos from Flickr account")
 
     all_to_be_pruned = defaultdict(dict)
+    all_to_be_added = defaultdict(list)
 
-    for set_id in flickr_sets:
+    for set_id in lightroom_flickr_sets:
         print_flush(f"\nProcessing Flickr set: {set_id}")
         lr_photos = get_lr_photos(conn, set_id)
         if args.debug:
@@ -129,10 +139,19 @@ def main():
 
         audit_results = perform_audit(lr_photos, flickr_photos, not args.no_deep)
 
-        # Logical progression report
+        flickr_photos_in_set = get_all_photos_in_set(flickr, set_id)
+        flickr_photos_in_set_ids = {photo['id'] for photo in flickr_photos_in_set}
+
+        in_lr_not_in_set = [
+            lr_photo for lr_photo in lr_photos
+            if lr_photo['lr_remote_id'] not in flickr_photos_in_set_ids
+        ]
+
         total_lr_photos = len(lr_photos)
         total_flickr_photos = len(flickr_photos)
+        total_flickr_photos_in_set = len(flickr_photos_in_set)
         in_lr_not_in_flickr = len(audit_results["in_lr_not_in_flickr"])
+        in_lr_not_in_set_count = len(in_lr_not_in_set)
         timestamp_matches = len(audit_results["timestamp_matches"])
         filename_matches = len(audit_results["filename_matches"])
         document_id_matches = len(audit_results["document_id_matches"])
@@ -141,7 +160,9 @@ def main():
         print_flush(f"\nAudit Results for set {set_id}:")
         print_flush(f"Total photos in Lightroom set: {total_lr_photos}")
         print_flush(f"Total photos in Flickr account: {total_flickr_photos}")
+        print_flush(f"Total photos in Flickr set: {total_flickr_photos_in_set}")
         print_flush(f"Photos in Lightroom publish set but not in Flickr: {in_lr_not_in_flickr}")
+        print_flush(f"Photos in Lightroom but not in expected Flickr set: {in_lr_not_in_set_count}")
         print_flush(f"  - Timestamp matches: {timestamp_matches}")
         print_flush(f"  - Filename matches: {filename_matches}")
         if not args.no_deep:
@@ -166,6 +187,10 @@ def main():
                         update_lr_remote_id(conn, old_flickr_id, flickr_id)
         else:
             print_flush("\nDry run completed. Use --fix-singles to apply changes.")
+
+        if args.fix_sets:
+            photos_to_add = [photo['lr_remote_id'] for photo in in_lr_not_in_set]
+            all_to_be_added[set_id].extend(photos_to_add)
 
     if args.prune:
         print_flush("\nLow engagement Flickr matches identified for deletion:")
@@ -196,6 +221,30 @@ def main():
                     print_flush(f"    Deleted Flickr IDs: {', '.join(flickr_ids)}")
         else:
             print_flush("Pruning cancelled. No photos were deleted.")
+
+    if args.fix_sets:
+        print_flush("\nPhotos to be added to their expected Flickr sets:")
+        total_to_add = sum(len(photos) for photos in all_to_be_added.values())
+        print_flush(f"Total photos to be added: {total_to_add}")
+        for set_id, photos in all_to_be_added.items():
+            print_flush(f"\nSet {set_id}:")
+            print_flush(f"  Photos to add: {', '.join(photos)}")
+
+        confirm = input("\nDo you want to proceed with adding photos to sets? (y/n): ").lower().strip()
+        if confirm == 'y':
+            all_added_photos = defaultdict(list)
+            for set_id, photos_to_add in all_to_be_added.items():
+                if args.debug:
+                    print_flush(f"Adding photos to set {set_id}")
+                added_photos = add_photos_to_set(flickr, photos_to_add, set_id, args.debug)
+                all_added_photos[set_id] = added_photos
+
+            print_flush("\nAdding photos to sets completed:")
+            for set_id, added_photos in all_added_photos.items():
+                print_flush(f"\nSet {set_id}:")
+                print_flush(f"  Added photos: {', '.join(added_photos)}")
+        else:
+            print_flush("Adding photos to sets cancelled. No changes were made.")
 
     flickr_photos = get_flickr_photos(flickr)  # Note: This gets all photos, not just for the set
     title_quote_count = sum(1 for photo in flickr_photos if '"' in photo['title'])
