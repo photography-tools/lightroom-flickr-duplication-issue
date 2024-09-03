@@ -103,6 +103,7 @@ def get_brief_photo_info(photo, is_lr=True):
             "lr_global_id": photo.get("lr_global_id"),
             "lr_remote_id": photo.get("lr_remote_id"),
             "filename": photo['ag_library_file'].get('baseName', ''),
+            "extension": photo['ag_library_file'].get('extension', ''),
             "capture_time": photo['adobe_images'].get('captureTime')
         }
     else:

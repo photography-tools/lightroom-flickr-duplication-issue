@@ -7,15 +7,15 @@ It performs the following actions:
 2. Checks that both photo IDs exist in Flickr, and that the --goner photo is in the Lightroom catalog's AgRemotePhoto table.
 3. Moves the --goner photo to a set named "To Be Deleted" in Flickr (for safety, actual deletion is left to the end-user)
 4. Updates the Lightroom catalog entry to point the plugin published photo to the --keeper photo instead of the --goner photo.
-5. Removes the --goner photo from the managed set (lr_managed_set_id) if present.
-6. Adds the --keeper photo to the managed set (lr_managed_set_id) if not already present.
+5. Removes the --goner photo from the managed set if present.
+6. Adds the --keeper photo to the managed set if not already present.
 
 Usage:
   python merge.py --keeper [id] --goner [id] [--force] [--missing]
 
 Requirements:
   - flickrapi library
-  - secrets.json file with Flickr API credentials and set ID
+  - secrets.json file with Flickr API credentials
   - SQLite3 (usually comes pre-installed with Python)
 
 Note: Always backup your Lightroom catalog and EXIT LIGHTROOM before running this code.
@@ -23,6 +23,7 @@ Note: Always backup your Lightroom catalog and EXIT LIGHTROOM before running thi
 
 import json
 import datetime
+import re
 import flickrapi
 import argparse
 import sqlite3
@@ -34,7 +35,6 @@ with open('secrets.json') as f:
 api_key = secrets['api_key']
 api_secret = secrets['api_secret']
 lightroom_db = secrets['lrcat_file_path']
-lr_managed_set_id = secrets['set_id']
 
 def iso(epoch):
     return datetime.datetime.fromtimestamp(int(epoch)).isoformat()
@@ -112,6 +112,32 @@ def check_photo_in_lightroom(photo_id):
     conn.close()
     return exists
 
+def get_managed_set_id(photo_id):
+    """Derive the managed set ID from the URL in the AgRemotePhoto table for a specific photo."""
+    conn = sqlite3.connect(lightroom_db)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT url FROM AgRemotePhoto WHERE remoteId = ?", (photo_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            url = result[0]
+            # Extract set ID from URL
+            match = re.search(r'https://www\.flickr\.com/photos/[^/]+/\d+/in/set-(\d+)', url)
+            if match:
+                return match.group(1)
+            else:
+                print(f"Warning: Could not extract set ID from URL for photo {photo_id}")
+                return None
+        else:
+            print(f"Warning: No URL found for photo {photo_id} in AgRemotePhoto table.")
+            return None
+    except sqlite3.Error as e:
+        print(f"Error querying the database: {e}")
+        return None
+    finally:
+        conn.close()
+
 def move_to_delete_set(flickr, photo_id):
     """Move a photo to the 'To Be Deleted' set."""
     # Check if 'To Be Deleted' set exists, create if not
@@ -137,7 +163,7 @@ def move_to_delete_set(flickr, photo_id):
             flickr.photosets.addPhoto(photoset_id=delete_set_id, photo_id=photo_id, format='parsed-json')
             print(f"Added photo {photo_id} to existing 'To Be Deleted' set")
         except flickrapi.exceptions.FlickrError as e:
-            print(f"Error adding photo to 'To Be Deleted' set: {str(e)}")
+            print(f"Note: {str(e)}")
             return
 
     print(f"Successfully moved photo {photo_id} to 'To Be Deleted' set")
@@ -156,7 +182,7 @@ def update_lightroom_catalog(goner_id, keeper_id):
     conn.close()
     print(f"Updated Lightroom catalog: remapped {goner_id} to {keeper_id}")
 
-def remove_from_managed_set(flickr, photo_id):
+def remove_from_managed_set(flickr, photo_id, lr_managed_set_id):
     """Remove the goner photo from the managed set."""
     try:
         flickr.photosets.removePhoto(photoset_id=lr_managed_set_id, photo_id=photo_id, format='parsed-json')
@@ -164,7 +190,7 @@ def remove_from_managed_set(flickr, photo_id):
     except flickrapi.exceptions.FlickrError as e:
         print(f"Error removing photo {photo_id} from managed set: {str(e)}")
 
-def add_to_managed_set(flickr, photo_id):
+def add_to_managed_set(flickr, photo_id, lr_managed_set_id):
     """Add the keeper photo to the managed set if not already present."""
     try:
         # Check if the photo is already in the set
@@ -195,6 +221,14 @@ def main():
     # Initialize Flickr API with authentication
     flickr = authenticate()
 
+    # Get the managed set ID from the AgRemotePhoto table for the goner photo
+    lr_managed_set_id = get_managed_set_id(args.goner)
+    if lr_managed_set_id:
+        print(f"Managed set ID derived from AgRemotePhoto table for photo {args.goner}: {lr_managed_set_id}")
+    else:
+        print(f"Error: Could not derive managed set ID for photo {args.goner}. Exiting.")
+        return
+
     # Check if keeper photo exists on Flickr
     if not check_photo_exists(flickr, args.keeper):
         print(f"Error: Keeper photo {args.keeper} does not exist on Flickr.")
@@ -222,7 +256,7 @@ def main():
 
         # Remove goner from managed set
         if not dry_run:
-            remove_from_managed_set(flickr, args.goner)
+            remove_from_managed_set(flickr, args.goner, lr_managed_set_id)
         else:
             print(f"[DRY RUN] Would remove photo {args.goner} from managed set {lr_managed_set_id}")
     else:
@@ -230,7 +264,7 @@ def main():
 
     # Add keeper to managed set
     if not dry_run:
-        add_to_managed_set(flickr, args.keeper)
+        add_to_managed_set(flickr, args.keeper, lr_managed_set_id)
     else:
         print(f"[DRY RUN] Would add photo {args.keeper} to managed set {lr_managed_set_id}")
 
