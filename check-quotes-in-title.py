@@ -7,6 +7,8 @@ It checks XMP, EXIF, and IPTC metadata in Lightroom for a comprehensive title ch
 
 Usage:
     python check-quotes-in-title.py <path_to_lightroom_catalog>
+    secrets.json file must be present in the same directory with the following format:
+    {   "api_key":  "...", "api_secret": "..." }
 
 Arguments:
     path_to_lightroom_catalog: Path to the Lightroom catalog file (.lrcat)
@@ -22,8 +24,8 @@ from datetime import datetime
 import flickrapi
 import re
 from lxml import etree
-from lightroom_operations import connect_to_lightroom_db, decompress_xmp, parse_xmp
-from flickr_operations import authenticate_flickr, get_flickr_photos
+from lightroom_ops import connect_to_lightroom_db, decompress_xmp, parse_xmp
+from flickr_ops import authenticate_flickr, get_flickr_photos
 
 def load_secrets():
     with open('secrets.json') as f:
@@ -47,7 +49,7 @@ def get_flickr_set_id(conn):
 def parse_metadata(xmp_data):
     if not xmp_data:
         return {}
-    
+
     try:
         root = etree.fromstring(xmp_data)
         namespaces = {
@@ -57,9 +59,9 @@ def parse_metadata(xmp_data):
             'exif': 'http://ns.adobe.com/exif/1.0/',
             'iptc': 'http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/'
         }
-        
+
         metadata = {}
-        
+
         # Check XMP title
         xmp_title = root.find('.//dc:title/rdf:Alt/rdf:li', namespaces)
         if xmp_title is not None:
@@ -105,9 +107,9 @@ def get_lr_photos_with_quotes(conn):
             decompressed_xmp = decompress_xmp(xmp)
             if decompressed_xmp:
                 metadata = parse_metadata(decompressed_xmp)
-                
+
                 titles_with_quotes = {k: v for k, v in metadata.items() if v and '"' in v}
-                
+
                 if titles_with_quotes:
                     photos_with_quotes.append({
                         'lr_id': lr_id,
@@ -126,7 +128,7 @@ def get_flickr_photos_with_quotes(flickr):
 def main(catalog_path):
     secrets = load_secrets()
     conn = connect_to_lightroom_db(catalog_path)
-    
+
     set_id = get_flickr_set_id(conn)
     if not set_id:
         print("Error: Could not find Flickr set ID in the Lightroom catalog.")

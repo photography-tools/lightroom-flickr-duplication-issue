@@ -154,3 +154,14 @@ def get_all_lr_photos(conn):
         })
 
     return lr_photos
+
+def get_flickr_sets(conn):
+    """Get all Flickr sets from the Lightroom database."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT SUBSTRING(url, INSTR(url, 'set-') + 4) as set_id
+        FROM AgRemotePhoto
+        WHERE url LIKE '%flickr.com%' AND url LIKE '%/in/set-%'
+    """)
+    return [row[0] for row in cursor.fetchall()]
+

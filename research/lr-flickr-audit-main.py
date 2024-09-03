@@ -27,8 +27,8 @@ from datetime import datetime
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from lightroom_operations import get_lr_photos, connect_to_lightroom_db, get_all_lr_photos
-from flickr_operations import authenticate_flickr, get_flickr_photos, find_filename_matches
+from lightroom_ops import get_lr_photos, connect_to_lightroom_db, get_all_lr_photos
+from flickr_ops import authenticate_flickr, get_flickr_photos, find_filename_matches
 
 def load_secrets():
     with open('secrets.json') as f:
@@ -59,14 +59,14 @@ def main():
     flickr = authenticate_flickr(secrets['api_key'], secrets['api_secret'])
 
     conn = connect_to_lightroom_db(secrets['lrcat_file_path'])
-    
+
     if args.full:
         print("Scanning the entire Lightroom catalog...")
         lr_photos = get_all_lr_photos(conn)
     else:
         print(f"Scanning Lightroom publish set (ID: {secrets['set_id']})...")
         lr_photos = get_lr_photos(conn, secrets['set_id'])
-    
+
     conn.close()
 
     flickr_photos = get_flickr_photos(flickr)

@@ -2,6 +2,9 @@
 swap.py: Swap Flickr photo references for two photos in the Lightroom catalog.
 
 This script addresses the need to swap Flickr photo references for two photos in the Lightroom catalog.
+
+This is a relatively safe way to recover from duplicate uploads. Swap first and then manually delete the duplicate.
+
 It performs the following actions:
 1. Takes two Flickr photo IDs (remoteId) as input arguments
 2. Retrieves the corresponding id_local values from the Lightroom catalog.

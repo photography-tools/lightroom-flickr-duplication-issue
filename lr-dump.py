@@ -13,11 +13,11 @@ Features:
 - Outputs results in Markdown format for easy reading and further processing
 
 Usage:
-    python lr-dump.py <path_to_lightroom_catalog> [--path-substring <substring1> ...] [--remote <remote_id1> ...]
+    python lr-dump.py <path_to_lightroom_catalog> [--filename <substring1> ...] [--remote <remote_id1> ...]
 
 Arguments:
     path_to_lightroom_catalog: Path to the Lightroom catalog file (.lrcat)
-    --path-substring: Substring(s) to match against image file paths. Can be specified multiple times.
+    --filename: Substring(s) to match against image file paths. Can be specified multiple times.
     --remote: Remote ID(s) to match against AgRemotePhoto.remoteId. Can be specified multiple times.
 
 Output:
@@ -78,7 +78,7 @@ def flatten_xml(elem, prefix=''):
 
 def get_image_data(conn, path_substrings, remote_ids):
     cursor = conn.cursor()
-    
+
     where_clauses = []
     params = []
 
@@ -91,9 +91,9 @@ def get_image_data(conn, path_substrings, remote_ids):
         params.extend(remote_ids)
 
     where_clause = " OR ".join(where_clauses)
-    
+
     query = f"""
-    SELECT 
+    SELECT
         Adobe_images.*,
         AgLibraryFile.*,
         AgLibraryFolder.pathFromRoot,
@@ -110,21 +110,21 @@ def get_image_data(conn, path_substrings, remote_ids):
     LEFT JOIN AgLibraryPublishedCollection ON AgLibraryPublishedCollectionImage.collection = AgLibraryPublishedCollection.id_local
     WHERE {where_clause}
     """
-    
+
     cursor.execute(query, params)
-    
+
     columns = [description[0] for description in cursor.description]
     images = []
-    
+
     for row in cursor.fetchall():
         image_data = dict(zip(columns, row))
-        
+
         # Construct full file path
         image_data['full_file_path'] = os.path.join(
-            image_data['pathFromRoot'], 
+            image_data['pathFromRoot'],
             f"{image_data['baseName']}.{image_data['extension']}"
         )
-        
+
         # Parse XMP data if available
         if image_data.get('xmp'):
             decompressed_xmp = decompress_xmp(image_data['xmp'])
@@ -132,12 +132,12 @@ def get_image_data(conn, path_substrings, remote_ids):
                 xmp_data = parse_xmp(decompressed_xmp)
                 if xmp_data:
                     image_data.update({f"xmp.{k}": v for k, v in xmp_data.items()})
-        
+
         # Remove the original compressed XMP data
         image_data.pop('xmp', None)
-        
+
         images.append(image_data)
-    
+
     return images
 
 def generate_markdown_table(headers, data):
@@ -158,11 +158,11 @@ def generate_markdown_output(images):
     all_fields = set()
     for image in images:
         all_fields.update(image.keys())
-    
+
     # Separate fields with same values and different values
     same_value_fields = []
     diff_value_fields = []
-    
+
     for field in sorted(all_fields):
         values = [str(image.get(field, '')) for image in images]
         if len(set(values)) == 1:
@@ -209,12 +209,12 @@ def main(catalog_path, path_substrings, remote_ids):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Dump Lightroom catalog data for specified images")
     parser.add_argument("catalog_path", help="Path to the Lightroom catalog file (.lrcat)")
-    parser.add_argument("--path-substring", action='append', help="Substring to match against image file paths. Can be specified multiple times.")
+    parser.add_argument("--filename", action='append', help="Substring to match against image file paths. Can be specified multiple times.")
     parser.add_argument("--remote", action='append', help="Remote ID to match against AgRemotePhoto.remoteId. Can be specified multiple times.")
-    
+
     args = parser.parse_args()
 
     if not args.path_substring and not args.remote:
-        parser.error("At least one of --path-substring or --remote must be specified.")
+        parser.error("At least one of --filename or --remote must be specified.")
 
     main(args.catalog_path, args.path_substring, args.remote)
