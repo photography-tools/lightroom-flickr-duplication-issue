@@ -107,9 +107,12 @@ def get_brief_photo_info(photo, is_lr=True):
         }
     else:
         return {
-            "flickr_id": photo.get("id"),
+            "flickr_id": photo["id"],
             "title": photo.get("title"),
-            "date_taken": photo.get("datetaken")
+            "datetaken": photo.get("datetaken"),
+            "views": photo.get("views"),
+            "count_comments": photo.get("count_comments"),
+            "ispublic": photo.get("ispublic")
         }
 
 def print_audit_results(audit_results, brief=False):

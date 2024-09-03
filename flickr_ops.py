@@ -36,12 +36,7 @@ def get_flickr_photos(flickr):
         with open('ls-all.jsonl', 'r') as f:
             for line in f:
                 photo = json.loads(line)
-                photos.append({
-                    'id': photo['photo_id'],
-                    'title': photo.get('title', ''),
-                    'datetaken': photo['date_taken'],
-                    'views': photo['views']
-                })
+                photos.append(photo)
         print(f"Read {len(photos)} photos from ls-all.jsonl")
         return photos
 
@@ -71,20 +66,11 @@ def find_filename_matches(lr_filename, flickr_photos):
     return matches
 
 def get_photo_details(flickr, photo, api_key, get_favorites=True):
-    photo_id = photo.get('id')
 
-    out = {
-        'photo_id': photo_id,
-        'title': photo.get('title'),
-        'date_taken': photo.get('datetaken'),
-        'date_upload': datetime.fromtimestamp(int(photo.get('lastupdate'))).isoformat(),
-        'views': int(photo.get('views') or 0),
-        'comments': int(photo.get('count_comments') or 0),
-        'is_public': photo.get('ispublic')
-    }
+    out = photo
 
     if get_favorites:
-        favorites_response = flickr.photos.getFavorites(api_key=api_key, photo_id=photo_id)
+        favorites_response = flickr.photos.getFavorites(api_key=api_key, photo_id=photo['id'])
         out['favorites'] = int(favorites_response.find('photo').get('total'))
 
     return out
@@ -99,7 +85,7 @@ def list_photos(flickr, api_key, api_secret, args):
         get_favorites = args.favorites
         search_params = {
             'user_id': 'me',
-            'extras': 'date_taken,last_update,views,media,path_alias,original_format,count_comments,is_public',
+            'extras': 'date_taken,last_update,views,media,path_alias,original_format,count_comments,ispublic',
             'per_page': per_page,
             'page': page
         }
@@ -112,7 +98,7 @@ def list_photos(flickr, api_key, api_secret, args):
         get_favorites = True if args.favorites is None else args.favorites
         search_params = {
             'photoset_id': set_id,
-            'extras': 'date_taken,last_update,views,media,path_alias,original_format,count_comments,is_public',
+            'extras': 'date_taken,last_update,views,media,path_alias,original_format,count_comments,ispublic',
             'per_page': per_page,
             'page': page
         }
