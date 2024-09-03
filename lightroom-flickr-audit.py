@@ -5,18 +5,12 @@ This script integrates the flickr_operations and lightroom_operations modules
 to perform a comprehensive audit between Lightroom catalogs and Flickr sets.
 
 Usage:
-    python lightroom_flickr_audit_main.py [--fix] [--deep] [--brief]
+    python lightroom_flickr_audit_main.py [--fix] [--fix-basic] [--deep] [--brief]
 
 Options:
-    --fix     Execute fixes for mismatches (default is dry-run)
-    --deep    Perform a deep audit, including XMP metadata analysis
-    --brief   Output concise results focusing on key identification fields
-
-Requirements:
-    - Python 3.6+
-    - flickrapi library
-    - lxml library (for XML parsing)
-    - secrets.json file with necessary credentials and paths
+    --fix-singles Repoint Lightroom to single Flickr match for single matches only
+    --brief       Output concise results focusing on key identification fields
+    --no-deep     Disable deep scan (XMP metadata analysis)
 """
 
 import argparse
@@ -28,11 +22,11 @@ from datetime import datetime
 # Import functions from our modules
 from audit_utils import load_secrets, perform_audit, print_audit_results
 from flickr_ops import add_to_managed_set, authenticate_flickr, get_flickr_photos
-from lightroom_ops import connect_to_lightroom_db, extract_xmp_document_id, get_flickr_sets, get_lr_photos
+from lightroom_ops import connect_to_lightroom_db, extract_xmp_document_id, get_flickr_sets, get_lr_photos, update_lr_remote_id
 
 def main():
     parser = argparse.ArgumentParser(description='Lightroom-Flickr Audit and Synchronization Utility')
-    parser.add_argument('--fix', action='store_true', help='Execute fixes for mismatches (default is dry-run)')
+    parser.add_argument('--fix-singles', action='store_true', help='Repoint Lightroom to single Flickr match for single matches only')
     parser.add_argument('--brief', action='store_true', help='Output concise results focusing on key identification fields')
     parser.add_argument('--no-deep', action='store_true', help='Disable deep scan (XMP metadata analysis)')
     args = parser.parse_args()
@@ -73,13 +67,16 @@ def main():
 
         print_audit_results(audit_results, args.brief)
 
-        if args.fix:
-            print(f"\nExecuting fixes for set {set_id}:")
-            for photo in audit_results["no_matches"]:
-                if photo["lr_remote_id"]:
-                    add_to_managed_set(flickr, photo["lr_remote_id"], set_id)
+        if args.fix_singles:
+            print(f"\nExecuting basic fixes for set {set_id}:")
+            for match_type in ["timestamp_matches", "filename_matches", "document_id_matches"]:
+                for photo in audit_results[match_type]:
+                    if len(photo["flickr_matches"]) == 1:
+                        flickr_id = photo["flickr_matches"][0]["id"]
+                        old_flickr_id = photo["lr_photo"]["lr_remote_id"]
+                        update_lr_remote_id(conn, old_flickr_id, flickr_id)
         else:
-            print("\nDry run completed. Use --fix to apply changes.")
+            print("\nDry run completed. Use --fix-basic to apply changes.")
 
     flickr_photos = get_flickr_photos(flickr)  # Note: This gets all photos, not just for the set
     title_quote_count = sum(1 for photo in flickr_photos if '"' in photo['title'])

@@ -173,3 +173,53 @@ def extract_xmp_document_id(xmp_data):
         return description.get('@xmpMM:DocumentID')
     return None
 
+def update_lr_remote_id(conn, old_flickr_id, new_flickr_id):
+    """
+    Update the remote ID and URL for a photo in the Lightroom database.
+
+    Args:
+    conn (sqlite3.Connection): Connection to the Lightroom database
+    lr_id (str): The current remote ID in Lightroom (old Flickr ID)
+    new_flickr_id (str): The new Flickr ID to update to
+
+    Returns:
+    bool: True if the update was successful, False otherwise
+    """
+    cursor = conn.cursor()
+
+    try:
+        # First, get the current URL
+        cursor.execute("SELECT url FROM AgRemotePhoto WHERE remoteId = ?", (old_flickr_id,))
+        result = cursor.fetchone()
+
+        if result is None:
+            raise(f"No photo found with remote ID: {old_flickr_id}")
+
+        current_url = result[0]
+
+        # Create the new URL by replacing the old ID with the new one
+        new_url = current_url.replace(old_flickr_id, new_flickr_id)
+
+        # Update the database
+        cursor.execute("""
+            UPDATE AgRemotePhoto
+            SET remoteId = ?, url = REPLACE(url, ?, ?), photoNeedsUpdating = 1
+            WHERE remoteId = ?
+        """, (new_flickr_id, old_flickr_id, new_flickr_id, old_flickr_id))
+
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            print(f"Successfully updated remote ID from {old_flickr_id} to {new_flickr_id}")
+            return True
+        else:
+            print(f"No rows were updated for remote ID: {old_flickr_id}")
+            return False
+
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        conn.rollback()
+        return False
+
+    finally:
+        cursor.close()
