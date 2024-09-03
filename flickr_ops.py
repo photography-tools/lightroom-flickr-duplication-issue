@@ -139,6 +139,29 @@ def list_photos(flickr, api_key, api_secret, args):
 
     print(f"Finished processing {photos_processed} photos. Results saved to {output_file}")
 
+def delete_flickr_photo(flickr, photo_id):
+    """
+    Delete a photo from Flickr.
+
+    :param flickr: Authenticated Flickr API object
+    :param photo_id: ID of the photo to delete
+    :return: True if deletion was successful, False otherwise
+    """
+    try:
+        # Attempt to delete the photo
+        response = flickr.photos.delete(photo_id=photo_id)
+
+        # Check if the deletion was successful
+        if response['stat'] == 'ok':
+            print(f"Successfully deleted photo with ID: {photo_id}")
+            return True
+        else:
+            print(f"Failed to delete photo with ID: {photo_id}")
+            return False
+    except flickrapi.exceptions.FlickrError as e:
+        print(f"Error deleting photo with ID {photo_id}: {str(e)}")
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description='Flickr operations script')
     parser.add_argument('--ls', action='store_true', help='List photos (use with additional arguments)')
