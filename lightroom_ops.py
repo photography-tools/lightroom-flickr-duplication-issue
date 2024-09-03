@@ -165,3 +165,11 @@ def get_flickr_sets(conn):
     """)
     return [row[0] for row in cursor.fetchall()]
 
+def extract_xmp_document_id(xmp_data):
+    """Extract XMP Document ID from XMP data."""
+    if xmp_data and isinstance(xmp_data, dict):
+        rdf = xmp_data.get('x:xmpmeta', {}).get('rdf:RDF', {})
+        description = rdf.get('rdf:Description', {})
+        return description.get('@xmpMM:DocumentID')
+    return None
+
