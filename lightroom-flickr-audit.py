@@ -25,7 +25,7 @@ from datetime import datetime
 
 # Import functions from our modules
 from audit_utils import load_secrets, perform_audit, print_audit_results
-from flickr_ops import add_to_managed_set, authenticate_flickr, get_all_photos_in_set, get_flickr_photos, delete_flickr_photo
+from flickr_ops import add_to_managed_set, authenticate_flickr, get_all_photos_in_set, get_flickr_photos, delete_flickr_photo, sync_flickr_set
 from lightroom_ops import connect_to_lightroom_db, extract_xmp_document_id, get_flickr_sets, get_lr_photos, update_lr_remote_id
 
 def print_flush(message):
@@ -127,9 +127,14 @@ def main():
     all_to_be_pruned = defaultdict(dict)
     all_to_be_added = defaultdict(list)
 
+    all_to_be_added = defaultdict(list)
+    all_to_be_removed = defaultdict(list)
+
     for set_id in lightroom_flickr_sets:
         print_flush(f"\nProcessing Flickr set: {set_id}")
         lr_photos = get_lr_photos(conn, set_id)
+        lr_photo_ids = {photo['lr_remote_id'] for photo in lr_photos}
+
         if args.debug:
             print_flush(f"Retrieved {len(lr_photos)} photos from Lightroom for set {set_id}")
 
@@ -141,6 +146,17 @@ def main():
 
         flickr_photos_in_set = get_all_photos_in_set(flickr, set_id)
         flickr_photos_in_set_ids = {photo['id'] for photo in flickr_photos_in_set}
+
+        # Photos to add (in LR but not in Flickr set)
+        photos_to_add = [id for id in lr_photo_ids if id not in flickr_photos_in_set_ids]
+        print(f"Photos missing from Flickr Set: {len(photos_to_add)}")
+
+        # Photos to remove (in Flickr set but not in LR)
+        photos_to_remove = [id for id in flickr_photos_in_set_ids if id not in lr_photo_ids]
+        print(f"Photos in Flickr set not in LR set: {len(photos_to_remove)}")
+
+        all_to_be_added[set_id].extend(photos_to_add)
+        all_to_be_removed[set_id].extend(photos_to_remove)
 
         in_lr_not_in_set = [
             lr_photo for lr_photo in lr_photos
@@ -223,28 +239,40 @@ def main():
             print_flush("Pruning cancelled. No photos were deleted.")
 
     if args.fix_sets:
-        print_flush("\nPhotos to be added to their expected Flickr sets:")
+        print_flush("\nPhotos to be synchronized with Flickr sets:")
         total_to_add = sum(len(photos) for photos in all_to_be_added.values())
+        total_to_remove = sum(len(photos) for photos in all_to_be_removed.values())
         print_flush(f"Total photos to be added: {total_to_add}")
-        for set_id, photos in all_to_be_added.items():
+        print_flush(f"Total photos to be removed: {total_to_remove}")
+
+        for set_id in all_to_be_added.keys() | all_to_be_removed.keys():
             print_flush(f"\nSet {set_id}:")
-            print_flush(f"  Photos to add: {', '.join(photos)}")
+            print_flush(f"  Photos to add: {', '.join(all_to_be_added[set_id])}")
+            print_flush(f"  Photos to remove: {', '.join(all_to_be_removed[set_id])}")
 
-        confirm = input("\nDo you want to proceed with adding photos to sets? (y/n): ").lower().strip()
+        confirm = input("\nDo you want to proceed with synchronizing photos in sets? (y/n): ").lower().strip()
         if confirm == 'y':
-            all_added_photos = defaultdict(list)
-            for set_id, photos_to_add in all_to_be_added.items():
+            all_synced_photos = defaultdict(lambda: {'added': [], 'removed': []})
+            for set_id in all_to_be_added.keys() | all_to_be_removed.keys():
                 if args.debug:
-                    print_flush(f"Adding photos to set {set_id}")
-                added_photos = add_photos_to_set(flickr, photos_to_add, set_id, args.debug)
-                all_added_photos[set_id] = added_photos
+                    print_flush(f"Synchronizing photos for set {set_id}")
+                added_photos, removed_photos = sync_flickr_set(
+                    flickr,
+                    all_to_be_added[set_id],
+                    all_to_be_removed[set_id],
+                    set_id,
+                    args.debug
+                )
+                all_synced_photos[set_id]['added'] = added_photos
+                all_synced_photos[set_id]['removed'] = removed_photos
 
-            print_flush("\nAdding photos to sets completed:")
-            for set_id, added_photos in all_added_photos.items():
+            print_flush("\nSynchronizing photos in sets completed:")
+            for set_id, synced_photos in all_synced_photos.items():
                 print_flush(f"\nSet {set_id}:")
-                print_flush(f"  Added photos: {', '.join(added_photos)}")
+                print_flush(f"  Added photos: {', '.join(synced_photos['added'])}")
+                print_flush(f"  Removed photos: {', '.join(synced_photos['removed'])}")
         else:
-            print_flush("Adding photos to sets cancelled. No changes were made.")
+            print_flush("Synchronizing photos in sets cancelled. No changes were made.")
 
     flickr_photos = get_flickr_photos(flickr)  # Note: This gets all photos, not just for the set
     title_quote_count = sum(1 for photo in flickr_photos if '"' in photo['title'])

@@ -11,6 +11,83 @@ import flickrapi
 import argparse
 from datetime import datetime
 
+def sync_flickr_set(flickr, photos_to_add, photos_to_remove, set_id, debug=False):
+    """
+    Synchronize a Flickr set with Lightroom by adding and removing photos.
+
+    Args:
+    flickr (flickrapi.FlickrAPI): Authenticated Flickr API object
+    photos_to_add (list): List of photo IDs to add to the Flickr set
+    photos_to_remove (list): List of photo IDs to remove from the Flickr set
+    set_id (str): ID of the Flickr set to synchronize
+    debug (bool): Whether to print debug information
+
+    Returns:
+    tuple: Lists of successfully added and removed photo IDs
+    """
+    added_photos = []
+    removed_photos = []
+
+    for photo_id in photos_to_add:
+        if debug:
+            print(f"Attempting to add photo {photo_id} to set {set_id}")
+        try:
+            add_to_managed_set(flickr, photo_id, set_id)
+            added_photos.append(photo_id)
+        except Exception as e:
+            print(f"Failed to add photo {photo_id} to set {set_id}: {str(e)}")
+
+    for photo_id in photos_to_remove:
+        if debug:
+            print(f"Attempting to remove photo {photo_id} from set {set_id}")
+        try:
+            remove_from_set(flickr, photo_id, set_id)
+            removed_photos.append(photo_id)
+        except Exception as e:
+            print(f"Failed to remove photo {photo_id} from set {set_id}: {str(e)}")
+
+    return added_photos, removed_photos
+
+def remove_from_set(flickr: flickrapi.FlickrAPI, photo_id: str, set_id: str) -> None:
+    """
+    Remove a photo from a Flickr set.
+
+    Args:
+    flickr (flickrapi.FlickrAPI): Authenticated Flickr API object
+    photo_id (str): ID of the photo to remove
+    set_id (str): ID of the set to remove the photo from
+
+    Raises:
+    Exception: If there's an error removing the photo from the set
+    """
+    try:
+        flickr.photosets.removePhoto(api_key=flickr.api_key, photoset_id=set_id, photo_id=photo_id)
+    except Exception as e:
+        raise Exception(f"Error removing photo {photo_id} from set {set_id}: {str(e)}")
+
+def sync_flickr_set(flickr, photos_to_add, photos_to_remove, set_id, debug=False):
+    added_photos = []
+    removed_photos = []
+    for photo_id in photos_to_add:
+        if debug:
+            print(f"Attempting to add photo {photo_id} to set {set_id}")
+        try:
+            add_to_managed_set(flickr, photo_id, set_id)
+            added_photos.append(photo_id)
+        except Exception as e:
+            print(f"Failed to add photo {photo_id} to set {set_id}: {str(e)}")
+
+    for photo_id in photos_to_remove:
+        if debug:
+            print(f"Attempting to remove photo {photo_id} from set {set_id}")
+        try:
+            remove_from_set(flickr, photo_id, set_id)
+            removed_photos.append(photo_id)
+        except Exception as e:
+            print(f"Failed to remove photo {photo_id} from set {set_id}: {str(e)}")
+
+    return added_photos, removed_photos
+
 def get_all_photos_in_set(flickr, set_id):
     """Fetch all photos in a Flickr set, handling pagination."""
     photos = []
