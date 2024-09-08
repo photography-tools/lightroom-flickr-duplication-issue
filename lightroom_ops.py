@@ -3,6 +3,18 @@ lightroom_operations.py: Module for Lightroom-specific operations in the audit p
 
 This module handles interactions with the Lightroom catalog, including
 database connections and comprehensive photo information extraction.
+
+Functions:
+    connect_to_lightroom_db: Connect to the Lightroom database
+    decompress_xmp: Decompress XMP data
+    parse_xmp: Parse XMP data
+    etree_to_dict: Convert an XML element to a dictionary
+    get_table_data: Retrieve data from a table in the Lightroom database
+    get_lr_photos: Get Lightroom photos from a specific Flickr set
+    get_all_lr_photos: Get all Lightroom photos
+    get_flickr_sets: Get all Flickr sets from the Lightroom database
+    extract_xmp_document_id: Extract XMP Document ID from XMP data
+    update_lr_remote_id: Update the remote ID and URL for a photo in the Lightroom database
 """
 
 from collections import defaultdict

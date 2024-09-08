@@ -1,18 +1,19 @@
 """
 lightroom_flickr_audit_main.py: Main script for Lightroom-Flickr Audit
 
-This script integrates the flickr_operations and lightroom_operations modules
-to perform a comprehensive audit between Lightroom catalogs and Flickr sets.
+This script performs a comprehensive audit between Lightroom catalogs and Flickr sets.
+It provides options for fixing single matches, adding photos to Flickr sets,
+identifying and optionally deleting low-engagement Flickr duplicates, and enabling
+deep scanning of XMP metadata for additional identification.
 
 Usage:
     python lightroom_flickr_audit_main.py [--fix-singles] [--fix-sets] [--prune] [--brief] [--no-deep] [--debug]
 
 Options:
-    --fix-singles Repoint Lightroom to single Flickr match for single matches only
+    --fix-singles Repoint Lightroom to single Flickr match for single matches only - This is the safest option to use when the Flickr duplicates have already been deleted by other means and you just need to repoint the dangling LR entry to the remaining Flickr photo.
     --fix-sets    Add photos to their expected Flickr sets
-    --prune       Identify and optionally delete low-engagement Flickr matches (views < 100, comments == 0, favorites == 0)
+    --prune       Identify and optionally delete low-engagement Flickr duplicates (same timestamp as other photo but has views < 100, comments == 0, favorites == 0)
     --brief       Output concise results focusing on key identification fields
-    --no-deep     Disable deep scan (XMP metadata analysis)
     --debug       Enable debug output
 """
 

@@ -1,3 +1,16 @@
+# clear-flickr-titles.py
+#
+# Clear Flickr photo titles in Lightroom published sets and optionally reset them to the photo IDs. This script can be used for recovering from duplication due to the buggy LR-Flickr plugin
+# see also: https://community.adobe.com/t5/lightroom-classic-discussions/lightroom-creates-duplicates-when-republishing-to-flickr/m-p/9695954
+#
+# Usage:
+#   python clear-flickr-titles.py [--force]
+#
+# Options:
+#   --force    Actually perform changes (default is dry-run)
+#
+
+import sys
 import json
 import os
 import sqlite3

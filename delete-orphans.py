@@ -1,6 +1,14 @@
-# delete-orphans.py:
-# Deletes orphaned photos that exist in the Lightroom publish collection but not in the managed Flickr set.
-# Has some additional options for skipping photos with high view counts.
+# delete_orphans.py
+# This script identifies and soft-deletes photos that are present in a Lightroom-managed Flickr album
+# but not in the corresponding Lightroom-Flickr publish collection.
+
+# It provides options to skip deleting photos with high view counts.
+# Soft deletion is achieved by moving the photos to another Flickr set.
+
+# This is a dry run by default. Use the --force option to actually perform the deletions.
+
+# Use this script to help recover from massive amount of duplicates published
+# by buggy LR-Flickr plugin.
 
 
 import json

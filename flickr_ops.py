@@ -3,6 +3,8 @@ flickr_operations.py: Module for Flickr-specific operations including photo list
 
 This module handles interactions with the Flickr API, including
 authentication, photo information retrieval, and photo listing functionality.
+It also includes utilities for adding and removing photos from Flickr sets.
+
 """
 
 import os

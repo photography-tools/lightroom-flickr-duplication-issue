@@ -1,3 +1,7 @@
+# audit_utils.py
+"""Utility functions for the photo audit script."""
+
+import hashlib
 import json
 import os
 from collections import defaultdict

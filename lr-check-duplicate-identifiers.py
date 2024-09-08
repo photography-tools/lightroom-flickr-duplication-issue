@@ -5,6 +5,9 @@ This script directly scans the Lightroom catalog, identifies photos that have
 duplicate values for the specified ID type in their XMP metadata, and outputs the results to a YAML file.
 For cases with exactly two duplicates, it performs a full comparison of all database and XML fields.
 
+In the script author's own catalog, it was discovered that the InstanceID field has
+massive duplication and it's not a useful identification field for most purposes.
+
 Usage:
     python audit_dup_id.py <path_to_lightroom_catalog> --attr {iid|did}
 
@@ -61,7 +64,7 @@ def parse_xmp(xmp_data):
             'xmp': 'http://ns.adobe.com/xap/1.0/',
             'xmpMM': 'http://ns.adobe.com/xap/1.0/mm/'
         }
-        
+
         # Extract all XML data
         xml_data = {}
         for elem in root.iter():
@@ -75,10 +78,10 @@ def parse_xmp(xmp_data):
                     xml_data[f"{{{ns}}}{attr}"] = value
                 else:
                     xml_data[name] = value
-        
+
         instance_id = xml_data.get('{http://ns.adobe.com/xap/1.0/mm/}InstanceID')
         document_id = xml_data.get('{http://ns.adobe.com/xap/1.0/mm/}DocumentID')
-        
+
         return instance_id, document_id, xml_data
     except Exception as e:
         print(f"Error parsing XMP data: {e}")
@@ -104,27 +107,27 @@ def get_photos_with_ids(conn):
     photos = []
     for row in cursor.fetchall():
         photo_data = dict(zip(columns, row))
-        
+
         instance_id, document_id, xml_data = None, None, {}
         if photo_data['xmp']:
             decompressed_xmp = decompress_xmp(photo_data['xmp'])
             if decompressed_xmp:
                 instance_id, document_id, xml_data = parse_xmp(decompressed_xmp)
-        
+
         full_file_path = os.path.join(photo_data['pathFromRoot'], f"{photo_data['baseName']}.{photo_data['extension']}" if photo_data['extension'] else photo_data['baseName'])
-        
+
         photo_data['file_path'] = full_file_path
         photo_data['instance_id'] = instance_id
         photo_data['document_id'] = document_id
         photo_data['xml_data'] = xml_data
-        
+
         photos.append(photo_data)
 
     return photos
 
 def compare_photos(photo1, photo2):
     differences = {}
-    
+
     # Compare database fields
     for key in set(photo1.keys()) | set(photo2.keys()):
         if key not in ['xmp', 'xml_data']:  # Exclude raw XMP and parsed XML data from this comparison
@@ -133,7 +136,7 @@ def compare_photos(photo1, photo2):
                     'photo1': photo1.get(key),
                     'photo2': photo2.get(key)
                 }
-    
+
     # Compare XML data
     xml_differences = {}
     all_xml_keys = set(photo1['xml_data'].keys()) | set(photo2['xml_data'].keys())
@@ -143,10 +146,10 @@ def compare_photos(photo1, photo2):
                 'photo1': photo1['xml_data'].get(key),
                 'photo2': photo2['xml_data'].get(key)
             }
-    
+
     if xml_differences:
         differences['xml_data'] = xml_differences
-    
+
     return differences
 
 def main(catalog_path, id_type):
@@ -180,12 +183,12 @@ def main(catalog_path, id_type):
                 'count': len(group),
                 'photos': group
             }
-            
+
             if len(group) == 2:
                 differences = compare_photos(group[0], group[1])
                 if differences:
                     duplicate_entry['differences'] = differences
-            
+
             results['duplicate_ids'].append(duplicate_entry)
 
     # Prepare summary
@@ -215,7 +218,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Audit Lightroom catalog for duplicate InstanceIDs or DocumentIDs")
     parser.add_argument("catalog_path", help="Path to the Lightroom catalog file (.lrcat)")
     parser.add_argument("--attr", choices=['iid', 'did'], required=True, help="Specify which ID to check for duplicates (iid for InstanceID, did for DocumentID)")
-    
+
     args = parser.parse_args()
 
     id_type = 'instance_id' if args.attr == 'iid' else 'document_id'

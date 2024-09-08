@@ -1,57 +1,42 @@
-# Scripts for Troubleshooting Lightroom-Flickr Plugin Issue
+# Lightroom-Flickr Synchronization Fix
 
-This repository contains a collection of Python scripts I developed to try to troubleshoot
-and fix an issue with duplicate uploads caused by the Flickr plugin for Adobe Lightroom. These tools were created to troubleshoot and fix the problem, and are not intended for regular use. I'm publishing them here for future reference in case a similar issue arises.
+## The Issue
 
-## Table of Contents
+This project addresses a long-standing issue with Adobe Lightroom's Flickr plugin that causes duplicate photo uploads due to improper handling of special characters like double quotes (") and backslashes (\) at the end of photo titles.
 
-- [Overview](#overview)
-- [Scripts](#scripts)
-- [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Configuration](#configuration)
-- [Usage Notes](#usage-notes)
-- [Lightroom Data Extraction](#lightroom-data-extraction)
-- [Caution](#caution)
-- [License](#license)
+When these special characters are present, they break the parsing of the Flickr API response in the Lightroom plugin. As a result, the plugin mishandles affected photos and others in the same batch (up to 500 photos), leading to duplicate uploads instead of updates to existing photos. A single problematic photo can cause up to 500 uploads to fail, creating duplicates.
 
-## Overview
+These scripts were created to troubleshoot and fix the issue. They are designed to audit discrepancies between Lightroom catalogs and Flickr photosets, identify duplicates, and provide methods to resolve the issues. While comprehensive, these tools were used for one-time fixes and have not been maintained or tested beyond their initial use.
 
-These scripts were created in response to a mass duplicate upload event caused by a malfunction in the Lightroom Flickr plugin. They were designed to audit the discrepancies between my Lightroom catalog and Flickr photosets, identify the duplicates, and provide methods to resolve the issues. While comprehensive, these tools were used for a one-time fix and have not been maintained or tested beyond their initial use.
+More information about the Lightroom plugin bug can be found in this forum post:
+https://community.adobe.com/t5/lightroom-classic-discussions/lightroom-creates-duplicates-when-republishing-to-flickr/m-p/9695954
+
+## Solution Overview
+
+The solution, which is really a long-term "workaround and avoid", involves:
+
+1. Identifying affected photos
+2. Removing duplicate uploads from Flickr
+3. Correcting Lightroom catalog entries to repoint to the original uploads
+4. Preventing future occurrences by sanitizing photo titles
 
 ## Scripts
 
-1. `add-set.py`: Adds a photo to a specified Flickr set, creating the set if it doesn't exist.
+1. `audit_utils.py`, `flickr_ops.py`,`lightroom_ops.py` : Utility functions for the other scripts.
 
-2. `audit.py`: An early attempt to compare Flickr set data with Lightroom publish collection dump.
+2. `clear-flickr-titles.py`: Clears Flickr photo titles in Lightroom published sets and optionally resets them to the photo IDs.
 
-3. `delete-orphans.py`: Identifies and optionally deletes orphaned photos that exist in the Lightroom publish collection but not in the managed Flickr set.
+3. `delete-orphans.py`: Identifies and soft-deletes photos present in a Lightroom-managed Flickr album but not in the corresponding Lightroom-Flickr publish collection.
 
-4. `fix-flickr.py`: Processes audit results to correct issues on the Flickr side, such as removing duplicate photos from sets.
+4. `lightroom-flickr-audit.py`: Main script for Lightroom-Flickr Audit. Performs a comprehensive audit between Lightroom catalogs and Flickr sets.
 
-5. `fix-lightroom.py`: Generates SQL updates to correct discrepancies in the Lightroom catalog based on audit results.
+5. `lr-check-duplicate-identifiers.py`: Utility to find and report photos with duplicate InstanceID or DocumentID values. There was an attempt to use these IDs for photo de-deplication. It was found that these IDs are not reliable.
 
-6. `flickr-ls.py`: Lists photos in a Flickr set or the entire Flickr account, outputting detailed photo information in JSONL format.
+6. `lr-dump.py`: Utility to dump and compare Lightroom catalog data for specified images. This was useful for troubleshooting and trying to figure out how different images EXIF, IPTC, and XMP tags compare.
 
-7. `lr-audit.py`: Audits and fixes Lightroom-Flickr set mismatches, capable of adding missing photos to the managed Flickr set.
+7. `merge.py`: One-at-a-time fix to repoint a single photo from LR publish collection to a different Flickr photo. Useful when manually undoing duplicates.
 
-8. `lr-check-duplicate-identifiers.py`: Scans the Lightroom catalog for photos with duplicate InstanceID or DocumentID values in their XMP metadata.
-
-9. `lr-deep-audit.py`: Performs a timestamp-normalized deep audit for Lightroom-Flickr managed set synchronization, using precise capture times from XMP metadata.
-
-10. `lr-deep-fix.py`: Processes results from `lr-deep-audit.py` to generate fix commands for mismatches, handling both timestamp and filename matches.
-
-11. `lr-dump.py`: Extracts and compares Lightroom catalog data for specified images, outputting a flat comparison to a Markdown file.
-
-12. `lr-flickr-audit-main.py`: The main script coordinating the audit process between the Lightroom catalog and Flickr set.
-
-13. `lr-flickr-instanceid-report-yaml.py`: Generates a YAML report of InstanceIDs for Flickr-published photos from the Lightroom catalog.
-
-14. `merge.py`: Addresses duplicate Flickr uploads by moving photos to a "To Be Deleted" set and updating the Lightroom catalog.
-
-15. `swap.py`: Swaps Flickr photo references for two photos in the Lightroom catalog, useful for manually resolving duplicate uploads.
-
-16. `unfluck.py`: A script designed to revert the mass of duplicate uploads from the Lightroom Flickr plugin malfunction.
+8. `swap.py`: Swaps Flickr photo references for two photos in the Lightroom catalog. This is useful sometimes to swap the RAW and the JPEG before deleting the JPEG, or to manually deal with quasi-duplicates.
 
 ## Prerequisites
 
@@ -92,58 +77,18 @@ Most scripts read configuration from the `secrets.json` file. Some scripts accep
 
 ## Usage Notes
 
-These scripts were used in a specific sequence to address the duplicate upload issue:
+These scripts should be used carefully and in a specific sequence depending on the issue you're addressing. Always run scripts in dry-run mode first (usually by omitting the `--force` flag) to verify actions before applying changes.
 
-1. Initial Assessment:
-   ```
-   python flickr-ls.py --all > all_photos.jsonl
-   python lr-deep-audit.py
-   ```
-   This helped identify the extent of the duplicate uploads.
-
-2. Fixing Duplicates:
-   ```
-   python lr-deep-fix.py
-   python merge.py --keeper [keeper_id] --goner [goner_id] --force
-   ```
-   These steps were repeated as necessary to resolve duplicates.
-
-3. Mass Cleanup:
-   ```
-   python unfluck.py 2023-01-01 --force --max-views 100
-   ```
-   This was used to revert the bulk of duplicate uploads from a specific date.
-
-4. Audit V2:
-   ```
-   python lr-flickr-audit-main.py --full
-   ```
-   This was an improved rewrite of the initial `audit.py` script.
-
-## Official Lightroom-Flickr plugin source code
-
-The folder `lr-sdk-13.5` contains a copy of the source code of the official Lightroom-Flickr Plugin from Adobe, for quick reference and to help with troubleshooting.
-
-The weird Adobe license allows me to distribute a copy of the plugin code here, but to legally use it you need to download another copy yourself from the Adobe site (it's part of the SDK download).
-
-## Lightroom Data Extraction
-
-The `audit.py` script requires a manual step to access the Lightroom catalog data:
-
-1. Open the `.lrcat` file with DB Browser for SQLite.
-2. Export the table `AgRemotePhoto` as JSON.
-
-Other scripts like `lr-dump.py` can extract data directly from the catalog file.
+All current scripts in this toolkit are designed to interact directly with the Lightroom catalog file and do not require manual data extraction steps. They use SQLite connections to read from and write to the Lightroom database as needed.
 
 ## Caution
 
-These scripts were created for a one-time fix and can make significant changes to both the Lightroom catalog and Flickr account. If you need to use them:
+These scripts were created for specific one-time fixes and can make significant changes to both the Lightroom catalog and Flickr account. Always backup your Lightroom catalog before running any scripts. REVIEW THE CODE. USE AT YOUR OWN RISK.
 
-1. Always back up your Lightroom catalog before running any scripts.
-2. Use dry-run modes (usually by omitting the `--force` flag) to verify actions before applying changes.
-3. Carefully review any generated SQL statements before executing them on your Lightroom catalog.
-4. Be aware that these scripts have not been maintained or tested beyond their initial use.
+## lr-sdk-13.5 folder
+
+This contains a copy of the sample Flickr plugin from Adobe. This appears to be an older version of the current plugin, but suffers of the same bug, and was instrumental for understanding what's going on.
 
 ## License
 
-These scripts were developed by Generative AI and are not protected by copyright. No license is needed or possible.
+GNU v3 where applicable.
