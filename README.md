@@ -22,7 +22,7 @@ The solution, which is really a long-term "workaround and avoid", involves:
 
 ## Scripts
 
-1. `audit_utils.py`, `flickr_ops.py`,`lightroom_ops.py` : Utility functions for the other scripts.
+1. `audit_utils.py`, `flickr_ops.py`,`lightroom_ops.py` : Utility functions for the other scripts. Run `flickr_ops.py --all` to create a Flickr cache file (`ls-all.json`) that speeds up other scripts.
 
 2. `clear-flickr-titles.py`: Clears Flickr photo titles in Lightroom published sets and optionally resets them to the photo IDs.
 
